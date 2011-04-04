@@ -1,9 +1,7 @@
 var   dgram = require('dgram')
 	, _ = require('underscore')
+	, eventEmitter = require('events').EventEmitter
 	;
-	
-SERVER_ID = 1;
-
 
 
 
@@ -19,7 +17,7 @@ socketController.prototype.getServer = function(uid) {
 	var   ip = this.getIp(uid)
 		, port = this.getPort(uid)
 		;
-		
+
 	return {"ip": ip, "port": port};
 };
 
@@ -44,68 +42,74 @@ socketController.prototype.getBindingIp = function() {
 
 
 
-var ness = function(uid, options){
-	// variables
-	var   socketType = args.socketType || 'udp'
-		, maxListeners = args.maxListeners || 10
-		;
-		
-	// listeners are the callbacks attached to this object that will be called when listeners.uid.event is fired from the user with "uid": uid
-	this.listeners = {};
-	// listening is a list of uid's listening to events on the current object
-	this.listening = {};
+var ness = (function(){
+	function ness(uid, options){
+		// variables
+		var   maxListeners = args.maxListeners || 10
+			;
 
-}
+		// listeners are the callbacks attached to this object that will be called when listeners.uid.event is fired from the user with "uid": uid
+		this.listeners = {};
+		// listening is a list of uid's listening to events on the current object
+		this.listening = {};
 
-ness.prototype.listenTo = function(toUid, event, listener, listeningFailed){
-	var server = this.getServer(toUid);
-	var ro = new remoteObject(toUid, server);
-	
-	//inform remote object it has a listener
-	ro.attachEvent(event);
-	
-	if(this.listeners.toUid === undefined){
-		this.listeners.toUid = {};	
 	}
-	
-	//store the listener callback function
-	this.listeners.toUid.event = listener;
-};
 
-ness.prototype.getServer = function(uid){
-	var sc = new socketController();
-	return sc.getServer();
-};
+	// use underscore for inheritance
+	_.extend(ness, eventEmitter);
 
-ness.prototype.attachListener = function(fromUid, event) {
-	
-	if(this.listening.event === undefined){
-		this.listening.event = [];	
-	}
-	this.listening.event.push(fromUid);
-};
-
-
-
-
-ness.prototype.emit = function(event){
-	var   toUids = this.listening.event
-		;
-		
-	_.each(toUids, function (toUid) {
+	ness.prototype.listenTo = function(toUid, event, listener, listeningFailed){
 		var server = this.getServer(toUid);
-		ro = new remoteObject(toUid, server);
-		ro.emit(event);
-	});
-};
+		var ro = new remoteObject(toUid, server);
 
-ness.prototype.incomingListen = function(event, args) {
-	this.emit('incomingListen', event, args);
-};
+		//inform remote object it has a listener
+		ro.attachEvent(event);
 
-ness.prototype.incomingEmit = function(event, args) {
-	this.emit('incomingListen', event, args);
-};
+		if(this.listeners.toUid === undefined){
+			this.listeners.toUid = {};
+		}
+
+		//store the listener callback function
+		this.listeners.toUid.event = listener;
+	};
+
+	ness.prototype.getServer = function(uid){
+		var sc = new socketController();
+		return sc.getServer();
+	};
+
+	ness.prototype.attachListener = function(fromUid, event) {
+
+		if(this.listening.event === undefined){
+			this.listening.event = [];
+		}
+		this.listening.event.push(fromUid);
+	};
+
+
+
+
+	ness.prototype.emit = function(event){
+		var   toUids = this.listening.event
+			;
+
+		_.each(toUids, function (toUid) {
+			var server = this.getServer(toUid);
+			ro = new remoteObject(toUid, server);
+			ro.emit(event);
+		});
+	};
+
+	ness.prototype.incomingListen = function(event, args) {
+		this.emit('incomingListen', event, args);
+	};
+
+	ness.prototype.incomingEmit = function(event, args) {
+		this.emit('incomingListen', event, args);
+	};
+
+	return ness;
+})();
 
 
 
@@ -124,7 +128,7 @@ remoteObject.prototype.send = function(obj) {
 		, port = this.server.port
 		, ip = this.server.ip
 		;
-	
+
 	//socket is a global variable instatiated at startup
 	socket.send(msg, 0, msg.length, port, ip);
 };
@@ -139,44 +143,84 @@ remoteObject.prototype.emit = function(event) {
 
 
 
-
-
-
-
-
-
-
-var   sc = new socketController(SERVER_ID)
-	, socket = dgram.createSocket('udp4')
-	;
-
-socket.on("message", function (buf, rinfo) {
-	var   msg = buf.toString('utf8')
-		, obj
-		, lObject
-		, fn
-		, args
-		;
-	
-	try{
-		obj = JSON.parse(msg);
-	}catch(err){
-		console.warn("cant parse incoming message");
-		obj = {};
+/*
+container class for all clients
+*/
+objectList = function() {
+	function List() {
+		this.table = {};
 	}
-	
-	console.log("socket got: " + msg + " from " + rinfo.address + ":" + rinfo.port);
-	
-	if(obj.type !== undefined){
-		fn = obj.type;
-		args = obj.args || {};
-		lObject = sc.getObject(obj.uid).fn(obj.event, args);
+
+	List.prototype.add = function(id, obj) {
+		return this.table[id] = obj;
+	};
+
+	List.prototype.remove = function(id) {
+		return delete this.table[id];
+	};
+
+	List.prototype.get = function(id) {
+		return this.table[id]?this.table[id]:false;
+	};
+
+	List.prototype.getAll = function() {
+		return this.table;
+	};
+
+	return new List();
+}();
+
+
+
+
+
+
+
+
+
+
+
+
+
+exports.ness ={
+	"init": function(args){
+
+
+		var   sc = new socketController(args.serverId)
+			, socket = dgram.createSocket('udp4')
+			;
+
+		socket.on("message", function (buf, rinfo) {
+			var   msg = buf.toString('utf8')
+				, obj
+				, fn
+				, args
+				;
+
+			try{
+				obj = JSON.parse(msg);
+			}catch(err){
+				console.warn("cant parse incoming message");
+				obj = {};
+			}
+
+			console.log("socket got: " + msg + " from " + rinfo.address + ":" + rinfo.port);
+
+			if(obj.type !== undefined){
+				fn = obj.type;
+				args = obj.args || {};
+				// CHANGE THIS TO .EMIT(event)
+				objectList.get(obj.uid).fn(obj.event, args);
+			}
+		});
+
+		socket.on("listening", function () {
+			var address = socket.address();
+			console.log("socket listening " + address.address + ":" + address.port);
+		});
+
+		socket.bind( sc.getBindingPort(), sc.getBindingIp() );
+
 	}
-});
-
-socket.on("listening", function () {
-	var address = socket.address();
-	console.log("socket listening " + address.address + ":" + address.port);
-});
-
-socket.bind( sc.getBindingPort(), sc.getBindingIp() );
+	,"emitter": ness
+}

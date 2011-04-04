@@ -1,15 +1,14 @@
 
-var PORT = 80;
-IP = "127.0.0.1";
-http = require 'http'
-fs = require 'fs'
-url = require 'url'
-_ = require 'underscore'
+var   PORT = 80
+	, IP = "127.0.0.1"
+	, http = require 'http'
+	, fs = require 'fs'
+	, _ = require 'underscore'
+	, ness = require '/home/public_html/65.49.73.225/public/server/ness.js'
+	, options = {"serverId": 1, "socketType": "udp"}
+	;
 
-ex = require '/home/public_html/65.49.73.225/public/server/ness.js'
-ghost = ex.getGhost
-instanceList = ghost.getInstanceList()
-instanceList.add 1
+ness.init(options);
 
 
 http.createServer(function (req, res) {
