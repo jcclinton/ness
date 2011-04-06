@@ -6,6 +6,17 @@ var   dgram = require('dgram')
 
 
 
+
+
+
+
+
+
+
+
+
+
+
 var socketController = function(serverId){
 	this.basePort = 8000;
 	this.baseIP = '127.0.0.1';
@@ -42,23 +53,47 @@ socketController.prototype.getBindingIp = function() {
 
 
 
-var ness = (function(){
-	function ness(uid, options){
+
+
+
+
+
+
+
+
+
+
+
+var old_ness = (function(){
+	function old_ness(uid, options){
 		// variables
 		var   maxListeners = args.maxListeners || 10
+			, that = this
 			;
+
+		this.uid = uid;
 
 		// listeners are the callbacks attached to this object that will be called when listeners.uid.event is fired from the user with "uid": uid
 		this.listeners = {};
 		// listening is a list of uid's listening to events on the current object
 		this.listening = {};
 
+		// will on be defined at this point?
+		this.on('delete', deleteMe);
+
+		function deleteMe(){
+			objectList.remove(uid);
+			// will this work:
+			// or if i get the object from the list, will it make it work?
+			delete that;
+		};
+
 	}
 
 	// use underscore for inheritance
-	_.extend(ness, eventEmitter);
+	_.extend(old_ness, eventEmitter);
 
-	ness.prototype.listenTo = function(toUid, event, listener, listeningFailed){
+	old_ness.prototype.listenTo = function(toUid, event, listener, listeningFailed){
 		var server = this.getServer(toUid);
 		var ro = new remoteObject(toUid, server);
 
@@ -73,12 +108,12 @@ var ness = (function(){
 		this.listeners.toUid.event = listener;
 	};
 
-	ness.prototype.getServer = function(uid){
+	old_ness.prototype.getServer = function(uid){
 		var sc = new socketController();
 		return sc.getServer();
 	};
 
-	ness.prototype.attachListener = function(fromUid, event) {
+	old_ness.prototype.attachListener = function(fromUid, event) {
 
 		if(this.listening.event === undefined){
 			this.listening.event = [];
@@ -89,7 +124,7 @@ var ness = (function(){
 
 
 
-	ness.prototype.emit = function(event){
+	old_ness.prototype.emit = function(event){
 		var   toUids = this.listening.event
 			;
 
@@ -100,16 +135,22 @@ var ness = (function(){
 		});
 	};
 
-	ness.prototype.incomingListen = function(event, args) {
+	old_ness.prototype.incomingListen = function(event, args) {
 		this.emit('incomingListen', event, args);
 	};
 
-	ness.prototype.incomingEmit = function(event, args) {
+	old_ness.prototype.incomingEmit = function(event, args) {
 		this.emit('incomingListen', event, args);
 	};
 
-	return ness;
+	return old_ness;
 })();
+
+
+
+
+
+
 
 
 
@@ -140,6 +181,119 @@ remoteObject.prototype.attachEvent = function(event) {
 remoteObject.prototype.emit = function(event) {
 	this.send( {"toUid": this.uid, "event": event, "type": "incomingEmit"} );
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+var ness = {}
+ness.create = function(uid, subUids){
+	// extend eventEmitter class
+	function o(){
+		this.uid = uid;
+		this.subUids = _.isArray(subUids) && subUids || [];
+	}
+	var f = function(){};
+	f.prototype = eventEmitter.prototype;
+	f.protoype.constructor = o;
+	o.prototype = new f;
+
+
+	// METHODS CALLED FROM PUBLISHER
+
+	o.prototype.publish = function(event) {
+		if _.isEmpty(this.subUids){
+			return;
+		}
+
+		var   currentServerId = sc.getServerId(this.uid)
+			, servers = []
+			, args = slice.call(arguments, 1);
+			;
+
+		_.each(this.subUids, function(uid){
+			var   serverId = sc.getServerId(uid)
+				, server = sc.emit('send', serverId, uid, event, args) //this needs to be optimized
+				;
+		});
+	};
+
+
+
+	// METHODS CALLED FROM SUBSCRIBER
+
+	o.prototype.subscribe = function(pubUid, event, callback) {
+		var args = slice.call( arguments, 3 );
+
+		// message event is emitted when the message hits this server
+		// this occurs when the publisher has published a message to their subscribers
+		this.on('message', callback);
+
+		// emit message to sc to send this data off
+		sc.emit('sub', pubUid, event, args);
+
+	};
+
+	obj = new o;
+
+
+	// addSubscriber is fired when a new subscriber message hits the server
+	obj.on('addSubscriber',  function(subUid) {
+		obj.subUids.push(subUid);
+	});
+
+	return obj;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -182,7 +336,7 @@ objectList = function() {
 
 
 
-exports.ness ={
+exports.old_ness ={
 	"init": function(args){
 
 
@@ -222,5 +376,5 @@ exports.ness ={
 		socket.bind( sc.getBindingPort(), sc.getBindingIp() );
 
 	}
-	,"emitter": ness
+	,"emitter": old_ness
 }
