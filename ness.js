@@ -1,190 +1,300 @@
-var   dgram = require('dgram')
-	, _ = require('underscore')
-	, eventEmitter = require('events').EventEmitter
-	;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-var socketController = function(serverId){
-	this.basePort = 8000;
-	this.baseIP = '127.0.0.1';
-	this.numServers = 2;
-	this.serverId = serverId;
-}
-
-socketController.prototype.getServer = function(uid) {
-	var   ip = this.getIp(uid)
-		, port = this.getPort(uid)
+(function(){
+	var   dgram = require('dgram')
+		, _ = require('underscore')
+		, eventEmitter = require('events').EventEmitter
+		, SERVERID = 1
+		, objectList 			// object list stores all ness objects
+		, socketController 		// singleton used to manage this servers sockets
+		, ness_obj 				// constructor for ness objects
+		, f 					// empty function to use for inheritance in ness object
 		;
 
-	return {"ip": ip, "port": port};
-};
-
-socketController.prototype.getIp = function() {
-	return '127.0.0.1';
-};
-
-socketController.prototype.getPort = function(uid) {
-	var offset = uid % this.numServers;
-	return this.basePort + offset;
-};
-
-socketController.prototype.getBindingPort = function() {
-	return this.basePort + this.serverId;
-};
-
-socketController.prototype.getBindingIp = function() {
-	return '127.0.0.1';
-};
 
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-var old_ness = (function(){
-	function old_ness(uid, options){
-		// variables
-		var   maxListeners = args.maxListeners || 10
-			, that = this
-			;
-
-		this.uid = uid;
-
-		// listeners are the callbacks attached to this object that will be called when listeners.uid.event is fired from the user with "uid": uid
-		this.listeners = {};
-		// listening is a list of uid's listening to events on the current object
-		this.listening = {};
-
-		// will on be defined at this point?
-		this.on('delete', deleteMe);
-
-		function deleteMe(){
-			objectList.remove(uid);
-			// will this work:
-			// or if i get the object from the list, will it make it work?
-			delete that;
+	/*
+	container class for all clients
+	*/
+	objectList = (function(){
+		var me = {
+			"table": {}
 		};
 
-	}
+		me.add = function(id, obj) {
+			return me.table[id] = obj;
+		};
 
-	// use underscore for inheritance
-	_.extend(old_ness, eventEmitter);
+		me.remove = function(id) {
+			return delete me.table[id];
+		};
 
-	old_ness.prototype.listenTo = function(toUid, event, listener, listeningFailed){
-		var server = this.getServer(toUid);
-		var ro = new remoteObject(toUid, server);
+		me.get = function(id) {
+			return me.table[id]?me.table[id]:false;
+		};
 
-		//inform remote object it has a listener
-		ro.attachEvent(event);
+		me.getAll = function() {
+			return me.table;
+		};
 
-		if(this.listeners.toUid === undefined){
-			this.listeners.toUid = {};
-		}
-
-		//store the listener callback function
-		this.listeners.toUid.event = listener;
-	};
-
-	old_ness.prototype.getServer = function(uid){
-		var sc = new socketController();
-		return sc.getServer();
-	};
-
-	old_ness.prototype.attachListener = function(fromUid, event) {
-
-		if(this.listening.event === undefined){
-			this.listening.event = [];
-		}
-		this.listening.event.push(fromUid);
-	};
+		return me;
+	})();
 
 
 
 
-	old_ness.prototype.emit = function(event){
-		var   toUids = this.listening.event
+
+
+
+
+
+
+
+
+	socketController = (function(){
+		var   basePort = 8000
+			, baseIP = '127.0.0.1'
+			, numServers = 2
+			, serverId = SERVERID
+			, me
+			, _socketHandler
 			;
 
-		_.each(toUids, function (toUid) {
-			var server = this.getServer(toUid);
-			ro = new remoteObject(toUid, server);
-			ro.emit(event);
-		});
-	};
 
-	old_ness.prototype.incomingListen = function(event, args) {
-		this.emit('incomingListen', event, args);
-	};
+		me = {};
 
-	old_ness.prototype.incomingEmit = function(event, args) {
-		this.emit('incomingListen', event, args);
-	};
+		//extend eventEmitter object
+		_.extend(me, eventEmitter);
 
-	return old_ness;
-})();
+		me.socketPath = '';
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-var remoteObject = function(uid, server){
-	this.uid = uid;
-	this.server = server;
-}
-
-remoteObject.prototype.send = function(obj) {
-	var   msg = new Buffer( JSON.stringify( obj ) )
-		, port = this.server.port
-		, ip = this.server.ip
-		;
-
-	//socket is a global variable instatiated at startup
-	socket.send(msg, 0, msg.length, port, ip);
-};
-
-remoteObject.prototype.attachEvent = function(event) {
-	this.send( {"toUid": this.uid, "event": event, "type": "incomingListen"} );
-};
-
-remoteObject.prototype.emit = function(event) {
-	this.send( {"toUid": this.uid, "event": event, "type": "incomingEmit"} );
-};
+		// internal socket handler
+		// used to abstract away different socket types: udp, tcp, unix
+		_socketHandler = {};
+		_socketHandler.udp = {
+			"init": function(){
+				if(me.udpClient !== void 0){
+					console.log('udp client already defined');
+					return;
+				}
+				me.udpClient = dgram.createSocket('udp4');
+				return me.udpClient;
+			},
+			"bind": function(){
+				socket.bind( me.getCurrentPort(), me.getCurrentIp() );
+			}
+		};
+		_socketHandler.tcp = {
+			"init": function(){
+			},
+			"bind": function(){
+			}
+		};
+		_socketHandler.unix = {
+			"init": function(){
+				me.unixClient = dgram.createSocket('unix_dgram');
+				return me.unixClient;
+			},
+			"bind": function(){
+				if(me.socketPath !== ''){
+					socket.bind( me.socketPath );
+				}else{
+					console.log('trying to bind unix socket without initializing path');
+				}
+			}
+		};
 
 
 
 
+		// TODO figure out which of these functions can be made private
+		me.getCurrentServer = function(){
+			var   ip = me.getCurrentIp()
+				, port = me.getCurrentPort()
+				;
+
+			return {"ip": ip, "port": port};
+		}
+
+		me.getServer = function(uid) {
+			// TODO memoize this data
+			var   ip = me.getIp(uid)
+				, port = me.getPort(uid)
+				;
+
+			return {"ip": ip, "port": port};
+		};
+
+		me.getCurrentIp = function() {
+			return '127.0.0.1';
+		};
+
+		me.getCurrentPort = function() {
+			return basePort;
+		};
+
+		me.getIp = function() {
+			return '127.0.0.1';
+		};
+
+		me.getPort = function(uid) {
+			var offset = uid % numServers;
+			return basePort + offset;
+		};
+
+		me.initSocket = function(type){
+			var   socket
+				;
+
+			if( _socketHandler[type] ){
+				socket = _socketHandler[type].init();
+			}else{
+				console.log('invalid type used when initializing socket');
+				return;
+			}
+
+
+			socket.on("message", _onSocketMessage);
+
+			socket.on("listening", _onSocketListening);
+
+			socket.bind();
+		}
+
+		me.removeSocketPath = function(){
+			if(me.socketPath !== ''){
+				me.socketPath = '';
+			}
+			if(me.unixClient !== void 0){
+				delete me.unixClient;
+			}
+		}
+
+
+		/////////////////////////////////
+		// construct object:
+
+		me.on('pub', _pub);
+		me.on('sub', _sub);
+
+		// todo: set this up to be initialized via the user, if it is never initialized, simply run as if it were all in a single thread
+		me.initSocket('udp');
+		me.initSocket('unix');
+
+		return me;
+
+
+
+
+		///////////////////////////////////////////////////////////////////////////
+		// PRIVATE FUNCTIONS
+
+
+
+		// get the socket controller's attention when you need to publish something:
+		function _pub(subUids, event){
+			var args = slice.call(arguments, 2);
+
+			_.each(subUids, pubToUid);
+
+			function pubToUid(pubUid){
+				_sendToUid(subUid, 'publish', event, args);
+			}
+		}
+
+		// tell the sc you are subscribing to something
+		function _sub(pubUid, event){
+			var args = slice.call(arguments, 2);
+			_sendToUid(pubUid, 'subscribe', event, args);
+		}
+
+
+		// TODO: if multiple messages are being sent to the same server, batch them into the same message
+
+		// TODO: batch all subscribe messages together and fire them all out every x seconds
+		//			this may be possible for publish messages also, but the delay will be shorter
+		function _sendToUid(toUid, type, event, args){
+			var   toServer = me.getServer(toUid)
+				, currentServer = me.getCurrentServer()
+				, obj
+				, msg
+				, msg_obj
+				, new_args
+				;
+
+			// if the pubUid is in the same thread (same port and ip), simply emit the event
+			if( _.isEqual(toServer, currentServer) ){
+				_emitToObject(toUid, event, args);
+			}else{
+				msg_obj =   { "type": type
+							, "event": event
+							, "args": args
+							};
+				msg = new Buffer( JSON.stringify( msg_obj ) );
+				// if they are on the same server, write to a unix socket, otherwise send via socket
+				if(toServer.ip === currentServer.ip && me.socketPath !== ''){
+					if(me.unixClient !== void 0){
+						me.unixClient.send(msg, 0, msg.length, me.socketPath, onErr);
+					}else{
+						console.log('no unixClient was created');
+					}
+				}else if(me.udpClient !== void 0){
+					me.udpClient.send(msg, 0, msg.length, toServer.port, toServer.ip, onErr);
+				}else{
+					console.log('no udp client was created');
+				}
+			}
+
+			//callback if socket.send fails
+			function onErr(err, bytes) {
+			    if (err) {
+			      throw err;
+			    }
+			}
+		}
+
+		function _emitToObject(toUid, event, args){
+			obj = objectList.get(toUid);
+			if(_.isObject(obj)){
+				new_args = _.isArray(args) && !_.isEmpty(args) && args.unshift(event) || [event];
+				obj.emit.apply(obj, new_args);
+				//obj.emit(event, args);
+			}else{
+				console.log('trying to get a non-object on current server!');
+			}
+		}
+
+		function _onSocketListening() {
+			var address = socket.address();
+			console.log("socket listening " + address.address + ":" + address.port);
+		}
+
+		function _onSocketMessage(buf, rinfo) {
+			var   msg = buf.toString('utf8')
+				, obj
+				, event
+				;
+
+			try{
+				obj = JSON.parse(msg);
+			}catch(err){
+				console.log("cant parse incoming message");
+				obj = {};
+			}
+
+			console.log("socket got: " + msg + " from " + rinfo.address + ":" + rinfo.port);
+
+			if(obj.type !== void 0){
+				// TODO: make this more robust to check the validity of the incoming data
+				event = obj.type === 'publish'?obj.event:'addSubscriber';
+				_emitToObject(obj.toUid, event, obj.args);
+			}
+		}
+
+	})();
 
 
 
@@ -213,34 +323,46 @@ remoteObject.prototype.emit = function(event) {
 
 
 
-var ness = {}
-ness.create = function(uid, subUids){
+
 	// extend eventEmitter class
-	function o(){
+	ness_obj = function(uid, subUids){
 		this.uid = uid;
 		this.subUids = _.isArray(subUids) && subUids || [];
+
+		objectList.add(uid, this);
+
+
+		// addSubscriber is fired when a new subscriber message hits the server
+		// TODO: make this specific to the event being subscribed to
+
+		// TODO: will this work here in the xtor?
+		obj.on('addSubscriber',  function(subUid) {
+			obj.subUids.push(subUid);
+		});
 	}
-	var f = function(){};
+
+	// inherit from the eventEmitter object
+	f = function(){};
 	f.prototype = eventEmitter.prototype;
-	f.protoype.constructor = o;
-	o.prototype = new f;
+	f.protoype.constructor = ness_obj;
+	ness_obj.prototype = new f;
 
 
 	// METHODS CALLED FROM PUBLISHER
 
-	o.prototype.publish = function(event) {
+	ness_obj.prototype.publish = function(event) {
 		if _.isEmpty(this.subUids){
 			return;
 		}
 
-		var   currentServerId = sc.getServerId(this.uid)
+		var   currentServerId = socketController.getServerId(this.uid)
 			, servers = []
 			, args = slice.call(arguments, 1);
 			;
 
 		_.each(this.subUids, function(uid){
-			var   serverId = sc.getServerId(uid)
-				, server = sc.emit('send', serverId, uid, event, args) //this needs to be optimized
+			var   serverId = socketController.getServerId(uid)
+				, server = socketController.emit('pub', serverId, uid, event, args) //this needs to be optimized
 				;
 		});
 	};
@@ -249,7 +371,7 @@ ness.create = function(uid, subUids){
 
 	// METHODS CALLED FROM SUBSCRIBER
 
-	o.prototype.subscribe = function(pubUid, event, callback) {
+	ness_obj.prototype.subscribe = function(pubUid, event, callback) {
 		var args = slice.call( arguments, 3 );
 
 		// message event is emitted when the message hits this server
@@ -257,20 +379,10 @@ ness.create = function(uid, subUids){
 		this.on('message', callback);
 
 		// emit message to sc to send this data off
-		sc.emit('sub', pubUid, event, args);
+		socketController.emit('sub', pubUid, event, args);
 
 	};
 
-	obj = new o;
-
-
-	// addSubscriber is fired when a new subscriber message hits the server
-	obj.on('addSubscriber',  function(subUid) {
-		obj.subUids.push(subUid);
-	});
-
-	return obj;
-}
 
 
 
@@ -290,91 +402,28 @@ ness.create = function(uid, subUids){
 
 
 
-
-
-
-
-
-
-
-/*
-container class for all clients
-*/
-objectList = function() {
-	function List() {
-		this.table = {};
+	exports.ness ={
+		"socket": {
+			"setPath": function(path){
+				if(_.isString(path)){
+					if(path !== ''){
+						socketController.socketPath = path;
+						socketController.initSocket('unix');
+					}else{
+						socketController.removeSocketPath();
+					}
+				}else{
+					console.log('invalid path passed into setSocketPath');
+				}
+			}
+		},
+		"create": function(uid, subUids){
+			return new ness_obj(uid, subUids);
+		},
+		"getBaseObject": function(){
+			// TODO: will the ness.create method automatically return the updated objects if the user calls: ness.getBaseObject().prototype.newFunc ?
+			return ness_obj;
+		}
 	}
 
-	List.prototype.add = function(id, obj) {
-		return this.table[id] = obj;
-	};
-
-	List.prototype.remove = function(id) {
-		return delete this.table[id];
-	};
-
-	List.prototype.get = function(id) {
-		return this.table[id]?this.table[id]:false;
-	};
-
-	List.prototype.getAll = function() {
-		return this.table;
-	};
-
-	return new List();
-}();
-
-
-
-
-
-
-
-
-
-
-
-
-
-exports.old_ness ={
-	"init": function(args){
-
-
-		var   sc = new socketController(args.serverId)
-			, socket = dgram.createSocket('udp4')
-			;
-
-		socket.on("message", function (buf, rinfo) {
-			var   msg = buf.toString('utf8')
-				, obj
-				, fn
-				, args
-				;
-
-			try{
-				obj = JSON.parse(msg);
-			}catch(err){
-				console.warn("cant parse incoming message");
-				obj = {};
-			}
-
-			console.log("socket got: " + msg + " from " + rinfo.address + ":" + rinfo.port);
-
-			if(obj.type !== undefined){
-				fn = obj.type;
-				args = obj.args || {};
-				// CHANGE THIS TO .EMIT(event)
-				objectList.get(obj.uid).fn(obj.event, args);
-			}
-		});
-
-		socket.on("listening", function () {
-			var address = socket.address();
-			console.log("socket listening " + address.address + ":" + address.port);
-		});
-
-		socket.bind( sc.getBindingPort(), sc.getBindingIp() );
-
-	}
-	,"emitter": old_ness
-}
+})();
