@@ -39,6 +39,13 @@
 			return me.table;
 		};
 
+		me.getSize = function(){
+			//TODO: will this work:?
+			return me.table.length;
+			//otherwise us:
+			//return _.values(me.table).length;
+		}
+
 		return me;
 	})();
 
@@ -80,15 +87,21 @@
 					console.log('udp client already defined');
 					return;
 				}
+				_socketHandler.udp.isBound = false;
 				me.udpClient = dgram.createSocket('udp4');
 				return me.udpClient;
 			},
 			"bind": function(){
+				if(_socketHandler.udp.isBound === true){
+					socket.close();
+				}
 				socket.bind( me.getCurrentPort(), me.getCurrentIp() );
+				_socketHandler.udp.isBound = true;
 			}
 		};
 		_socketHandler.tcp = {
 			"init": function(){
+				console.log('tcp does not work yet');
 			},
 			"bind": function(){
 			}
@@ -146,22 +159,18 @@
 		};
 
 		me.initSocket = function(type){
-			var   socket
-				;
+			var socket;
 
-			if( _socketHandler[type] ){
+			if( _.isString(type) && _socketHandler[type] ){
 				socket = _socketHandler[type].init();
+
+				socket.on("message", _onSocketMessage);
+				socket.on("listening", _onSocketListening);
+
+				_socketHandler[type].bind();
 			}else{
-				console.log('invalid type used when initializing socket');
-				return;
+				console.log('invalid type used when initializing socket: ' + type);
 			}
-
-
-			socket.on("message", _onSocketMessage);
-
-			socket.on("listening", _onSocketListening);
-
-			socket.bind();
 		}
 
 		me.removeSocketPath = function(){
@@ -423,6 +432,9 @@
 		"getBaseObject": function(){
 			// TODO: will the ness.create method automatically return the updated objects if the user calls: ness.getBaseObject().prototype.newFunc ?
 			return ness_obj;
+		},
+		"getListSize": function(){
+			return objectList.getSize();
 		}
 	}
 
