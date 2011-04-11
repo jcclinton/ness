@@ -1,6 +1,7 @@
 (function(){
 	var   dgram = require('dgram')
 		, _ = require('underscore')
+		, process = require('process')
 		, fs = require('fs')
 		, eventEmitter = require('events').EventEmitter
 		, objectList 			// object list stores all ness objects
@@ -477,7 +478,7 @@
 				_.defaults(o, defaults);
 
 				//set server id
-				if( global.process.ARGV[2] ){
+				if( process.ARGV[2] ){
 					// if a parameter was passed in via command line,
 					// convert it from a string to an integer
 					serverId = global.process.ARGV[2] | 0;
