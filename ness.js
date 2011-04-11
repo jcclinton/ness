@@ -1,6 +1,7 @@
 (function(){
 	var   dgram = require('dgram')
 		, _ = require('underscore')
+		, fs = require('fs')
 		, eventEmitter = require('events').EventEmitter
 		, objectList 			// object list stores all ness objects
 		, socketController 		// singleton used to manage this servers sockets
@@ -74,6 +75,7 @@
 
 		me.socketPath = '';
 		me.serverId = 0;
+		me.initialized = false;
 
 
 		// internal socket handler
@@ -93,9 +95,12 @@
 				if(_socketHandler.udp.isBound === true){
 					me.udpClient.close();
 				}
-				console.log('trying to bind to port: ' + me.getCurrentPort() + ' and ip: ' + me.getCurrentIp());
-				me.udpClient.bind( me.getCurrentPort(), me.getCurrentIp() );
-				_socketHandler.udp.isBound = true;
+				if( me.getCurrentPort() > 0 ){
+					me.udpClient.bind( me.getCurrentPort(), me.getCurrentIp() );
+					_socketHandler.udp.isBound = true;
+				}else{
+					console.log('unable to bind udp port: port needs to be initialized first');
+				}
 			}
 		};
 		_socketHandler.tcp = {
@@ -131,7 +136,7 @@
 			return {"ip": ip, "port": port};
 		};
 
-		me.getServer = function(uid) {
+		me.getServerFromUid = function(uid) {
 			// TODO memoize this data
 			var   ip = me.getIp(uid)
 				, port = me.getPort(uid)
@@ -141,11 +146,27 @@
 		};
 
 		me.getCurrentIp = function() {
-			return '127.0.0.1';
+			return this.currentIp !== void 0 ? this.currentIp : '127.0.0.1';
+		};
+
+		me.setCurrentIp = function(ip){
+			if( _.isString( ip ) && !_.isEmpty( ip ) ){
+				this.currentIp = ip;
+			}else{
+				console.log('bad ip value passed into server map');
+			}
 		};
 
 		me.getCurrentPort = function() {
-			return basePort + me.getServerId();
+			return this.currentPort !== void 0 ? this.currentPort : 0;
+		};
+
+		me.setCurrentPort = function(port){
+			if( _.isNumber(port) && port > 0 ){
+				this.currentPort = port;
+			}else{
+				console.log('bad port value passed into server map');
+			}
 		};
 
 		me.getServerId = function(){
@@ -160,19 +181,25 @@
 			}
 		};
 
-		me.getIp = function() {
-			return '127.0.0.1';
-		};
+		me.loadServerData = function(serverMap){
+			var   server
+				, serverId = me.getServerId()
+				;
 
-		me.getPort = function(uid) {
-			var offset = uid % numServers;
-			return basePort + offset;
-		};
+			if( serverMap[serverId] !== void 0){
+				server = serverMap[serverId];
+				me.setCurrentPort( server.port );
+				me.setCurrentIp( server.ip );
+			}else{
+				console.log('bad data loaded in from server map');
+			}
+		}
 
 		me.initSocket = function(type){
 			var socket;
 
 			if( _.isString(type) && _socketHandler[type] ){
+				me.initialized = true;
 				socket = _socketHandler[type].init();
 
 				socket.on("message", _onSocketMessage);
@@ -243,7 +270,7 @@
 		// TODO: batch all subscribe messages together and fire them all out every x seconds
 		//			this may be possible for publish messages also, but the delay will be shorter
 		function _sendToUid(toUid, type, event, args){
-			var   toServer = me.getServer(toUid)
+			var   toServer = me.getServerFromUid(toUid)
 				, currentServer = me.getCurrentServer()
 				, obj
 				, msg
@@ -252,7 +279,8 @@
 				;
 
 			// if the pubUid is in the same thread (same port and ip), simply emit the event
-			if( _.isEqual(toServer, currentServer) ){
+			// if the init method has not been called, just emit and assume all objects are on this server
+			if( _.isEqual(toServer, currentServer) || me.initalized == false ){
 				_emitToObject(toUid, event, args);
 			}else{
 				msg_obj =   { "type": type
@@ -378,13 +406,13 @@
 			return;
 		}
 
-		var   currentServerId = socketController.getServer(this.uid)
+		var   currentServerId = socketController.getServerFromUid(this.uid)
 			, servers = []
 			, args = slice.call(arguments, 1);
 			;
 
 		_.each(this.subUids, function(uid){
-			var   serverId = socketController.getServer(uid)
+			var   serverId = socketController.getServerFromUid(uid)
 				, server = socketController.emit('pub', serverId, uid, event, args) //this needs to be optimized
 				;
 		});
@@ -438,9 +466,40 @@
 					console.log('invalid path passed into setSocketPath');
 				}
 			},
-			"init": function(server_id){
-				socketController.setServerId(server_id);
-				socketController.initSocket('udp');
+			"init": function(o){
+				var defaults = {   "serverId": 0
+								, "serverMap": ''
+								, "socketType": ''
+								, "socketPath": ''
+								}
+								, serverMap
+								;
+				_.defaults(o, defaults);
+
+				//set server id
+				socketController.setServerId(o.serverId);
+
+				//load server map from file
+				if( _.isString(o.serverMap) && !_.isEmpty(o.serverMap) ){
+					try{
+						// uses sync file read so that it can guarantee server map has been loaded before stuff starts happening
+						serverMap = JSON.parse( fs.readFileSync(o.serverMap).toString('utf8') );
+						socketController.loadServerData(serverMap);
+					}catch(err){
+						console.log('bad file descriptor passed into init');
+					}
+				}
+
+				//set socket path and init it if
+				if( !_.isEmpty( o.socketPath ) && _.isString(o.socketPath) ){
+					socketControllersocketPath = o.socketPath;
+					socketController.initSocket('unix');
+				}
+
+				//set net socket if the type was passed in
+				if( _.isString(o.socketType) && !_.isEmpty(o.socketType) && (o.socketType === 'udp' || o.socketType === 'tcp') ){
+					socketController.initSocket(o.socketType);
+				}
 			}
 		};
 		exports.create = function(uid, subUids){

@@ -5,17 +5,14 @@ var   PORT = 80
 	, fs = require('fs')
 	, _ = require('underscore')
 	, ness = require('/home/public_html/65.49.73.225/public/ness/ness.js')
-	, options = {"serverId": 1, "socketType": "udp"}
-	, SERVERID = 1
+	, options
+	, SERVERID = 2
+	, serverMap
 	;
 
+options = {   "serverId": SERVERID
+			, "serverMap": '/home/public_html/65.49.73.225/public/ness/map.js'
+			, "socketType": 'udp'
+			};
 
-
-http.createServer(function (req, res) {
-	res.writeHead(200, {'Content-Type': 'text/html'});
-	res.end('<h1>Hello World</h1>');
-}).listen(PORT, IP);
-console.log('Server running');
-
-
-ness.socket.init(SERVERID);
+ness.socket.init(options);
