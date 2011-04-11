@@ -467,17 +467,25 @@
 				}
 			},
 			"init": function(o){
-				var defaults = {   "serverId": 0
-								, "serverMap": ''
+				var defaults = {  "serverMap": ''
 								, "socketType": ''
 								, "socketPath": ''
 								}
 								, serverMap
+								, serverId
 								;
 				_.defaults(o, defaults);
 
 				//set server id
-				socketController.setServerId(o.serverId);
+				if( global.process.ARGV[2] ){
+					// if a parameter was passed in via command line,
+					// convert it from a string to an integer
+					serverId = global.process.ARGV[2] | 0;
+					serverId = ( _.isNumber(serverId) && serverId >= 0 ) ? serverId : 0 ;
+				}else{
+					serverId = 0;
+				}
+				socketController.setServerId( serverId );
 
 				//load server map from file
 				if( _.isString(o.serverMap) && !_.isEmpty(o.serverMap) ){
