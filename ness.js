@@ -70,10 +70,9 @@
 			;
 
 
-		me = {};
-
 		//extend eventEmitter object
-		_.extend(me, eventEmitter);
+		me = new eventEmitter;
+
 
 		me.socketPath = '';
 
@@ -93,9 +92,9 @@
 			},
 			"bind": function(){
 				if(_socketHandler.udp.isBound === true){
-					socket.close();
+					me.udpClient.close();
 				}
-				socket.bind( me.getCurrentPort(), me.getCurrentIp() );
+				me.udpClient.bind( me.getCurrentPort(), me.getCurrentIp() );
 				_socketHandler.udp.isBound = true;
 			}
 		};
@@ -113,7 +112,7 @@
 			},
 			"bind": function(){
 				if(me.socketPath !== ''){
-					socket.bind( me.socketPath );
+					me.unixClient.bind( me.socketPath );
 				}else{
 					console.log('trying to bind unix socket without initializing path');
 				}
@@ -146,7 +145,7 @@
 		};
 
 		me.getCurrentPort = function() {
-			return basePort;
+			return basePort + SERVERID;
 		};
 
 		me.getIp = function() {
@@ -170,6 +169,13 @@
 				_socketHandler[type].bind();
 			}else{
 				console.log('invalid type used when initializing socket: ' + type);
+				return;
+			}
+
+
+			function _onSocketListening() {
+				var address = socket.address();
+				console.log("socket listening " + address.address + ":" + address.port);
 			}
 		}
 
@@ -191,7 +197,6 @@
 
 		// todo: set this up to be initialized via the user, if it is never initialized, simply run as if it were all in a single thread
 		me.initSocket('udp');
-		me.initSocket('unix');
 
 		return me;
 
@@ -262,6 +267,7 @@
 			    if (err) {
 			      throw err;
 			    }
+    			console.log("Wrote " + bytes + " bytes to socket.");
 			}
 		}
 
@@ -276,10 +282,6 @@
 			}
 		}
 
-		function _onSocketListening() {
-			var address = socket.address();
-			console.log("socket listening " + address.address + ":" + address.port);
-		}
 
 		function _onSocketMessage(buf, rinfo) {
 			var   msg = buf.toString('utf8')
@@ -353,14 +355,14 @@
 	// inherit from the eventEmitter object
 	f = function(){};
 	f.prototype = eventEmitter.prototype;
-	f.protoype.constructor = ness_obj;
+	f.prototype.constructor = ness_obj;
 	ness_obj.prototype = new f;
 
 
 	// METHODS CALLED FROM PUBLISHER
 
 	ness_obj.prototype.publish = function(event) {
-		if _.isEmpty(this.subUids){
+		if( _.isEmpty(this.subUids) ){
 			return;
 		}
 
@@ -437,5 +439,4 @@
 			return objectList.getSize();
 		}
 	}
-
 })();
