@@ -6,6 +6,7 @@ var   PORT = 80
 	, _ = require('underscore')
 	, ness = require('/home/public_html/65.49.73.225/public/ness/ness.js')
 	, options = {"serverId": 1, "socketType": "udp"}
+	, SERVERID = 1
 	;
 
 
@@ -15,3 +16,6 @@ http.createServer(function (req, res) {
 	res.end('<h1>Hello World</h1>');
 }).listen(PORT, IP);
 console.log('Server running');
+
+
+ness.socket.init(SERVERID);

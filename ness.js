@@ -2,7 +2,6 @@
 	var   dgram = require('dgram')
 		, _ = require('underscore')
 		, eventEmitter = require('events').EventEmitter
-		, SERVERID = 1
 		, objectList 			// object list stores all ness objects
 		, socketController 		// singleton used to manage this servers sockets
 		, ness_obj 				// constructor for ness objects
@@ -64,7 +63,6 @@
 		var   basePort = 8000
 			, baseIP = '127.0.0.1'
 			, numServers = 2
-			, serverId = SERVERID
 			, me
 			, _socketHandler
 			;
@@ -75,6 +73,7 @@
 
 
 		me.socketPath = '';
+		me.serverId = 0;
 
 
 		// internal socket handler
@@ -94,6 +93,7 @@
 				if(_socketHandler.udp.isBound === true){
 					me.udpClient.close();
 				}
+				console.log('trying to bind to port: ' + me.getCurrentPort() + ' and ip: ' + me.getCurrentIp());
 				me.udpClient.bind( me.getCurrentPort(), me.getCurrentIp() );
 				_socketHandler.udp.isBound = true;
 			}
@@ -129,7 +129,7 @@
 				;
 
 			return {"ip": ip, "port": port};
-		}
+		};
 
 		me.getServer = function(uid) {
 			// TODO memoize this data
@@ -145,7 +145,19 @@
 		};
 
 		me.getCurrentPort = function() {
-			return basePort + SERVERID;
+			return basePort + me.getServerId();
+		};
+
+		me.getServerId = function(){
+			return this.serverId;
+		};
+
+		me.setServerId = function(id){
+			if( _.isNumber(id) ){
+				this.serverId = id;
+			}else{
+				console.log('trying to set server id with non-number');
+			}
 		};
 
 		me.getIp = function() {
@@ -177,7 +189,7 @@
 				var address = socket.address();
 				console.log("socket listening " + address.address + ":" + address.port);
 			}
-		}
+		};
 
 		me.removeSocketPath = function(){
 			if(me.socketPath !== ''){
@@ -186,7 +198,7 @@
 			if(me.unixClient !== void 0){
 				delete me.unixClient;
 			}
-		}
+		};
 
 
 		/////////////////////////////////
@@ -196,7 +208,7 @@
 		me.on('sub', _sub);
 
 		// todo: set this up to be initialized via the user, if it is never initialized, simply run as if it were all in a single thread
-		me.initSocket('udp');
+		//me.initSocket('udp');
 
 		return me;
 
@@ -366,13 +378,13 @@
 			return;
 		}
 
-		var   currentServerId = socketController.getServerId(this.uid)
+		var   currentServerId = socketController.getServer(this.uid)
 			, servers = []
 			, args = slice.call(arguments, 1);
 			;
 
 		_.each(this.subUids, function(uid){
-			var   serverId = socketController.getServerId(uid)
+			var   serverId = socketController.getServer(uid)
 				, server = socketController.emit('pub', serverId, uid, event, args) //this needs to be optimized
 				;
 		});
@@ -413,8 +425,7 @@
 
 
 
-	exports.ness ={
-		"socket": {
+		exports.socket = {
 			"setPath": function(path){
 				if(_.isString(path)){
 					if(path !== ''){
@@ -426,17 +437,21 @@
 				}else{
 					console.log('invalid path passed into setSocketPath');
 				}
+			},
+			"init": function(server_id){
+				socketController.setServerId(server_id);
+				socketController.initSocket('udp');
 			}
-		},
-		"create": function(uid, subUids){
+		};
+		exports.create = function(uid, subUids){
 			return new ness_obj(uid, subUids);
-		},
-		"getBaseObject": function(){
+		};
+		exports.getBaseObject = function(){
 			// TODO: will the ness.create method automatically return the updated objects if the user calls: ness.getBaseObject().prototype.newFunc ?
 			return ness_obj;
-		},
-		"getListSize": function(){
+		};
+		exports.getListSize = function(){
 			return objectList.getSize();
-		}
-	}
+		};
+
 })();
