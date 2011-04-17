@@ -329,14 +329,17 @@
 		}
 
 		function _emitToObject(toUid, fromUid, event, args){
-			obj = objectList.get(toUid);
-			if(obj){
-				new_args = _.isArray(args) && args || [];
-				new_args.unshift(event, fromUid);
-				obj.emit.apply(obj, new_args);
-			}else{
-				console.warn('trying to get a non-object on current server!');
-			}
+			// break this bit of processing into smaller chunks
+			_.defer(function(){
+				obj = objectList.get(toUid);
+				if(obj){
+					var new_args = _.isArray(args) && args || [];
+					new_args.unshift(event, fromUid);
+					obj.emit.apply(obj, new_args);
+				}else{
+					console.warn('trying to get a non-object on current server!');
+				}
+			});
 		}
 
 
@@ -418,12 +421,26 @@
 		// TODO: make this specific to the event being subscribed to
 
 		var that = this;
-		this.on('addSubscriber',  function(subUid) {
-			//check to ensure its not already in this array
-			if( _.indexOf(that.subUids, subUid) === -1){
+		this.on('addSubscriber', _addSubscriber);
+
+
+		// private xtor functions:
+		function _addSubscriber(subUid) {
+			// defer all computations that may be expensive
+			_.defer(checkIndex);
+
+
+			function checkIndex(){
+				//check to ensure its not already in this array
+				if( _.indexOf(that.subUids, subUid) === -1){
+					_.defer(pushUids);
+				}
+			}
+
+			function pushUids(){
 				that.subUids.push(subUid);
 			}
-		});
+		}
 	}
 
 	// inherit from the eventEmitter object
@@ -453,7 +470,9 @@
 			;
 
 		_.each(this.subUids, function(uid){
-			server = socketController.emit('pub', uid, that.uid, event, args); //this needs to be optimized
+			_.defer(function(){
+				socketController.emit('pub', uid, that.uid, event, args); //this needs to be optimized
+			});
 		});
 	};
 
