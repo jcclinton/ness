@@ -1,13 +1,13 @@
 (function(){
 	var   dgram = require('dgram')
 		, _ = require('underscore')
-		, process = require('process')
 		, fs = require('fs')
 		, eventEmitter = require('events').EventEmitter
 		, objectList 			// object list stores all ness objects
 		, socketController 		// singleton used to manage this servers sockets
 		, ness_obj 				// constructor for ness objects
 		, f 					// empty function to use for inheritance in ness object
+		, slice = Array.prototype.slice
 		;
 
 
@@ -85,7 +85,7 @@
 		_socketHandler.udp = {
 			"init": function(){
 				if(me.udpClient !== void 0){
-					console.log('udp client already defined');
+					console.warn('udp client already defined');
 					return;
 				}
 				_socketHandler.udp.isBound = false;
@@ -100,13 +100,13 @@
 					me.udpClient.bind( me.getCurrentPort(), me.getCurrentIp() );
 					_socketHandler.udp.isBound = true;
 				}else{
-					console.log('unable to bind udp port: port needs to be initialized first');
+					console.warn('unable to bind udp port: port needs to be initialized first');
 				}
 			}
 		};
 		_socketHandler.tcp = {
 			"init": function(){
-				console.log('tcp does not work yet');
+				console.warn('tcp does not work yet');
 			},
 			"bind": function(){
 			}
@@ -120,7 +120,7 @@
 				if(me.socketPath !== ''){
 					me.unixClient.bind( me.socketPath );
 				}else{
-					console.log('trying to bind unix socket without initializing path');
+					console.warn('trying to bind unix socket without initializing path');
 				}
 			}
 		};
@@ -137,10 +137,18 @@
 			return {"ip": ip, "port": port};
 		};
 
+		me.getIpFromUid = function(uid){
+			return '127.0.0.1';
+		};
+
+		me.getPortFromUid = function(uid){
+			return 8000 + (uid % 10);
+		}
+
 		me.getServerFromUid = function(uid) {
 			// TODO memoize this data
-			var   ip = me.getIp(uid)
-				, port = me.getPort(uid)
+			var   ip = me.getIpFromUid(uid)
+				, port = me.getPortFromUid(uid)
 				;
 
 			return {"ip": ip, "port": port};
@@ -154,7 +162,7 @@
 			if( _.isString( ip ) && !_.isEmpty( ip ) ){
 				this.currentIp = ip;
 			}else{
-				console.log('bad ip value passed into server map');
+				console.warn('bad ip value passed into server map');
 			}
 		};
 
@@ -166,7 +174,7 @@
 			if( _.isNumber(port) && port > 0 ){
 				this.currentPort = port;
 			}else{
-				console.log('bad port value passed into server map');
+				console.warn('bad port value passed into server map');
 			}
 		};
 
@@ -178,7 +186,7 @@
 			if( _.isNumber(id) ){
 				this.serverId = id;
 			}else{
-				console.log('trying to set server id with non-number');
+				console.warn('trying to set server id with non-number');
 			}
 		};
 
@@ -192,7 +200,7 @@
 				me.setCurrentPort( server.port );
 				me.setCurrentIp( server.ip );
 			}else{
-				console.log('bad data loaded in from server map');
+				console.warn('bad data loaded in from server map');
 			}
 		}
 
@@ -208,14 +216,14 @@
 
 				_socketHandler[type].bind();
 			}else{
-				console.log('invalid type used when initializing socket: ' + type);
+				console.warn('invalid type used when initializing socket: ' + type);
 				return;
 			}
 
 
 			function _onSocketListening() {
 				var address = socket.address();
-				console.log("socket listening " + address.address + ":" + address.port);
+				console.warn("socket listening " + address.address + ":" + address.port);
 			}
 		};
 
@@ -249,14 +257,8 @@
 
 
 		// get the socket controller's attention when you need to publish something:
-		function _pub(subUids, event){
-			var args = slice.call(arguments, 2);
-
-			_.each(subUids, pubToUid);
-
-			function pubToUid(pubUid){
-				_sendToUid(subUid, 'publish', event, args);
-			}
+		function _pub(toUid, event, args){
+			_sendToUid(toUid, 'publish', event, args);
 		}
 
 		// tell the sc you are subscribing to something
@@ -287,6 +289,7 @@
 				msg_obj =   { "type": type
 							, "event": event
 							, "args": args
+							, "toUid": toUid
 							};
 				msg = new Buffer( JSON.stringify( msg_obj ) );
 				// if they are on the same server, write to a unix socket, otherwise send via socket
@@ -294,12 +297,12 @@
 					if(me.unixClient !== void 0){
 						me.unixClient.send(msg, 0, msg.length, me.socketPath, onErr);
 					}else{
-						console.log('no unixClient was created');
+						console.warn('no unixClient was created');
 					}
 				}else if(me.udpClient !== void 0){
 					me.udpClient.send(msg, 0, msg.length, toServer.port, toServer.ip, onErr);
 				}else{
-					console.log('no udp client was created');
+					console.warn('no udp client was created');
 				}
 			}
 
@@ -308,18 +311,19 @@
 			    if (err) {
 			      throw err;
 			    }
-    			console.log("Wrote " + bytes + " bytes to socket.");
+    			console.warn("Wrote " + bytes + " bytes to socket.");
 			}
 		}
 
 		function _emitToObject(toUid, event, args){
 			obj = objectList.get(toUid);
-			if(_.isObject(obj)){
-				new_args = _.isArray(args) && !_.isEmpty(args) && args.unshift(event) || [event];
+			if(obj){
+				new_args = _.isArray(args) && args || [];
+				new_args.unshift(event);
 				obj.emit.apply(obj, new_args);
 				//obj.emit(event, args);
 			}else{
-				console.log('trying to get a non-object on current server!');
+				console.warn('trying to get a non-object on current server!');
 			}
 		}
 
@@ -333,16 +337,20 @@
 			try{
 				obj = JSON.parse(msg);
 			}catch(err){
-				console.log("cant parse incoming message");
+				console.warn("cant parse incoming message");
 				obj = {};
 			}
 
-			console.log("socket got: " + msg + " from " + rinfo.address + ":" + rinfo.port);
+			console.warn("socket got: " + msg + " from " + rinfo.address + ":" + rinfo.port);
 
 			if(obj.type !== void 0){
 				// TODO: make this more robust to check the validity of the incoming data
 				event = obj.type === 'publish'?obj.event:'addSubscriber';
-				_emitToObject(obj.toUid, event, obj.args);
+				if(obj.toUid){
+					_emitToObject(obj.toUid, event, obj.args);
+				}else{
+					console.warn('incoming socket message has no toUid specified');
+				}
 			}
 		}
 
@@ -388,8 +396,9 @@
 		// TODO: make this specific to the event being subscribed to
 
 		// TODO: will this work here in the xtor?
-		obj.on('addSubscriber',  function(subUid) {
-			obj.subUids.push(subUid);
+		var that = this;
+		this.on('addSubscriber',  function(subUid) {
+			that.subUids.push(subUid);
 		});
 	}
 
@@ -398,6 +407,14 @@
 	f.prototype = eventEmitter.prototype;
 	f.prototype.constructor = ness_obj;
 	ness_obj.prototype = new f;
+
+	/**
+	*	delete this object
+	*
+	*/
+	ness_obj.prototype.delete = function(){
+		objectList.remove(this.uid);
+	}
 
 
 	// METHODS CALLED FROM PUBLISHER
@@ -413,9 +430,7 @@
 			;
 
 		_.each(this.subUids, function(uid){
-			var   serverId = socketController.getServerFromUid(uid)
-				, server = socketController.emit('pub', serverId, uid, event, args) //this needs to be optimized
-				;
+			server = socketController.emit('pub', uid, event, args); //this needs to be optimized
 		});
 	};
 
@@ -454,6 +469,8 @@
 
 
 
+
+
 		exports.socket = {
 			"setPath": function(path){
 				if(_.isString(path)){
@@ -464,24 +481,26 @@
 						socketController.removeSocketPath();
 					}
 				}else{
-					console.log('invalid path passed into setSocketPath');
+					console.warn('invalid path passed into setSocketPath');
 				}
 			},
 			"init": function(o){
-				var defaults = {  "serverMap": ''
-								, "socketType": ''
-								, "socketPath": ''
-								}
-								, serverMap
-								, serverId
-								;
+				var   defaults
+					, serverMap
+					, serverId
+					;
+
+				defaults = {  "serverMap": ''
+							, "socketType": ''
+							, "socketPath": ''
+							};
 				_.defaults(o, defaults);
 
 				//set server id
-				if( process.ARGV[2] ){
+				if( process.ARGV && process.ARGV[2] ){
 					// if a parameter was passed in via command line,
 					// convert it from a string to an integer
-					serverId = global.process.ARGV[2] | 0;
+					serverId = process.ARGV[2] | 0;
 					serverId = ( _.isNumber(serverId) && serverId >= 0 ) ? serverId : 0 ;
 				}else{
 					serverId = 0;
@@ -495,7 +514,7 @@
 						serverMap = JSON.parse( fs.readFileSync(o.serverMap).toString('utf8') );
 						socketController.loadServerData(serverMap);
 					}catch(err){
-						console.log('bad file descriptor passed into init');
+						console.warn('bad file descriptor passed into init');
 					}
 				}
 
