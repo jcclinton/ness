@@ -28,6 +28,13 @@ if(uid === 0){
 		console.log('user: ' + user2.uid + ' received call event');
 	});
 
+	//user2.constructor.prototype.publish = function(ev){ console.log('publishing' + ev); };
+	ness.extendBaseObject({
+		"publish": function(ev){
+			console.log('publishing' + ev);
+		}
+	});
+
 }else{
 	subuids = [0];
 	port = 443;
@@ -50,6 +57,7 @@ user.on('call', function(){
 			if(uid === 0){
 				console.log('user: ' + user.uid + ' triggered call event');
 				user.publish('call', 'a', 'b', 'c');
+				user2.publish('call', 'a', 'b', 'c');
 				user2.subscribe(0, 'call');
 			}else{
 				console.log('user: ' + user.uid + ' subscribing to call event');
@@ -57,3 +65,4 @@ user.on('call', function(){
 			}
 		}
 	}).listen(port, '65.49.73.225');
+

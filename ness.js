@@ -41,11 +41,8 @@
 		};
 
 		me.getSize = function(){
-			//TODO: will this work:?
-			return me.table.length;
-			//otherwise us:
-			//return _.values(me.table).length;
-		}
+			return _.values(me.table).length;
+		};
 
 		return me;
 	})();
@@ -138,11 +135,11 @@
 		};
 
 		me.getIpFromUid = function(uid){
-			return '127.0.0.1';
+			return baseIP;
 		};
 
 		me.getPortFromUid = function(uid){
-			return 8000 + (uid % 2);
+			return basePort + (uid % 2);
 		}
 
 		me.getServerFromUid = function(uid) {
@@ -155,7 +152,7 @@
 		};
 
 		me.getCurrentIp = function() {
-			return this.currentIp !== void 0 ? this.currentIp : '127.0.0.1';
+			return this.currentIp !== void 0 ? this.currentIp : baseIP;
 		};
 
 		me.setCurrentIp = function(ip){
@@ -539,7 +536,6 @@
 
 		exports.socket = {
 			"setPath": function(path){
-				//TODO is this necessary?
 
 				if(_.isString(path)){
 					if(path !== ''){
@@ -599,14 +595,29 @@
 				}
 			})
 		};
-		exports.create = function(uid, subUids, callback){
 
+		exports.create = function(uid, subUids, callback){
 			return new ness_obj(uid, subUids || [], callback);
 		};
-		exports.getBaseObject = function(){
-			// TODO: will the ness.create method automatically return the updated objects if the user calls: ness.getBaseObject().prototype.newFunc ?
-			return ness_obj;
+
+		exports.extendBaseObject = function(){
+			var objs = slice.call(arguments);
+
+			_.each(objs, function(obj){
+				if(obj){
+					_.each(obj, function(val, key){
+						if( _.isString(key) && _.isFunction(val) ){
+							ness_obj.prototype[key] = val;
+						}else{
+							console.warn('invalid object passed into extendBaseObject');
+						}
+					});
+				}else{
+					console.warn('empty object passed into extendBaseObject');
+				}
+			});
 		};
+
 		exports.getListSize = function(){
 			return objectList.getSize();
 		};
