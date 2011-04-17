@@ -190,6 +190,15 @@
 			}
 		};
 
+		me.setSocketPath = function(path){
+			me.basePath = path;
+			me.socketPath = path + ':' + me.getCurrentPort();
+		};
+
+		me.getSocketPathFromUid = function(uid){
+			return me.basePath + ':' + me.getPortFromUid(uid);
+		};
+
 		me.loadServerData = function(serverMap){
 			var   server
 				, serverId = me.getServerId()
@@ -202,7 +211,7 @@
 			}else{
 				console.warn('bad data loaded in from server map');
 			}
-		}
+		};
 
 		me.initSocket = function(type){
 			var socket;
@@ -299,7 +308,7 @@
 				// if they are on the same server, write to a unix socket, otherwise send via socket
 				if(toServer.ip === currentServer.ip && me.socketPath !== ''){
 					if(me.unixClient !== void 0){
-						me.unixClient.send(msg, 0, msg.length, me.socketPath, onErr);
+						me.unixClient.send(msg, 0, msg.length, me.getSocketPathFromUid(toUid), onErr);
 					}else{
 						console.warn('no unixClient was created');
 					}
@@ -488,11 +497,10 @@
 		exports.socket = {
 			"setPath": function(path){
 				//TODO is this necessary?
-				return;
-				
+
 				if(_.isString(path)){
 					if(path !== ''){
-						socketController.socketPath = path;
+						socketController.setSocketPath(path);
 						socketController.initSocket('unix');
 					}else{
 						socketController.removeSocketPath();
@@ -537,8 +545,8 @@
 
 				//set socket path and init it if
 				// TODO is this necessary?
-				if( false && !_.isEmpty( o.socketPath ) && _.isString(o.socketPath) ){
-					socketController.socketPath = o.socketPath;
+				if( !_.isEmpty( o.socketPath ) && _.isString(o.socketPath) ){
+					socketController.setSocketPath( o.socketPath );
 					socketController.initSocket('unix');
 				}
 
