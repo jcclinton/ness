@@ -6,7 +6,6 @@
 		, objectList 			// object list stores all ness objects
 		, socketController 		// singleton used to manage this servers sockets
 		, ness_obj 				// constructor for ness objects
-		, f 					// empty function to use for inheritance in ness object
 		, slice = Array.prototype.slice
 		;
 
@@ -75,6 +74,10 @@
 		me.serverId = 0;
 		me.initialized = false;
 
+		// user defined algorithms to determine the port and ip from the uid
+		me.ipAlgorithm = false;
+		me.portAlgorithm = false;
+
 
 		// internal socket handler
 		// used to abstract away different socket types: udp, tcp, unix
@@ -135,12 +138,28 @@
 		};
 
 		me.getIpFromUid = function(uid){
-			return baseIP;
+			return ( me.ipAlgorithm && _.isFunction(me.ipAlgorithm) ) ? me.ipAlgorithm.call(me, uid) : baseIP;
 		};
 
 		me.getPortFromUid = function(uid){
-			return basePort + (uid % 2);
-		}
+			return ( me.portAlgorithm && _.isFunction(me.portAlgorithm) ) ? me.portAlgorithm.call(me, uid) : basePort + (uid % 2);
+		};
+
+		me.setIpAlgorithm = function(func){
+			if( _.isFunction(func) ){
+				me.ipAlgorithm = func;
+			}else{
+				console.log('invalid function passed into ip algorithm');
+			}
+		};
+
+		me.setPortAlgorithm = function(func){
+			if( _.isFunction(func) ){
+				me.portAlgorithm = func;
+			}else{
+				console.log('invalid function passed into port algorithm');
+			}
+		};
 
 		me.getServerFromUid = function(uid) {
 			// TODO memoize this data
@@ -418,100 +437,110 @@
 
 
 
-
-	// extend eventEmitter class
-	ness_obj = function(uid, subUids, callback){
-		var that = this;
-
-		this.uid = uid;
-		this.subUids = _.isArray(subUids) && subUids || [];
-
-		_.defer(function(){
-			objectList.add(uid, that);
-		});
-
-		// addSubscriber is fired when a new subscriber message hits the server
-		// TODO: make this specific to the event being subscribed to
-
-		this.on('addSubscriber', _addSubscriber);
-
-
-		// private xtor functions:
-		function _addSubscriber(subUid) {
-			// defer all computations that may be expensive
-			_.defer(checkIndex);
-
-			function checkIndex(){
-				//check to ensure its not already in this array
-				if( _.indexOf(that.subUids, subUid) === -1){
-					_.defer(pushUids);
-				}
-			}
-
-			function pushUids(){
-				that.subUids.push(subUid);
-
-				if( _.isFunction(callback) ){
-					callback.call( that, subUid );
-				}
-			}
-		}
-	}
-
-	// inherit from the eventEmitter object
-	f = function(){};
-	f.prototype = eventEmitter.prototype;
-	f.prototype.constructor = ness_obj;
-	ness_obj.prototype = new f;
-
 	/**
-	*	delete this object
+	*	base object.  extends the event emitter class
 	*
 	*/
-	ness_obj.prototype.delete = function(callback){
-		var that = this;
-
-		_.defer(function(){
-			objectList.remove(that.uid);
-			if( _.isFunction(callback) ){
-				callback.call( that );
-			}
-		});
-	}
-
-
-	// METHODS CALLED FROM PUBLISHER
-
-	ness_obj.prototype.publish = function(event) {
-		if( _.isEmpty(this.subUids) ){
-			return;
-		}
-
-		var   args = slice.call(arguments, 1)
-			, that = this
+	ness_obj = (function(){
+		var   me
+			, f
 			;
 
-		_.each(this.subUids, function(uid){
+		me = function(uid, subUids, callback){
+			var that = this;
+
+			this.uid = uid;
+			this.subUids = _.isArray(subUids) && subUids || [];
+
 			_.defer(function(){
-				//this needs to be optimized so it can batch together messages to the same server
-				socketController.emit('pub', uid, that.uid, event, args);
+				objectList.add(uid, that);
 			});
-		});
-	};
+
+			// addSubscriber is fired when a new subscriber message hits the server
+			// TODO: make this specific to the event being subscribed to
+
+			this.on('addSubscriber', _addSubscriber);
+
+
+			// private xtor functions:
+			function _addSubscriber(subUid) {
+				// defer all computations that may be expensive
+				_.defer(checkIndex);
+
+				function checkIndex(){
+					//check to ensure its not already in this array
+					if( _.indexOf(that.subUids, subUid) === -1){
+						_.defer(pushUids);
+					}
+				}
+
+				function pushUids(){
+					that.subUids.push(subUid);
+
+					if( _.isFunction(callback) ){
+						callback.call( that, subUid );
+					}
+				}
+			}
+		};
+
+		// inherit from the eventEmitter object
+		f = function(){};
+		f.prototype = eventEmitter.prototype;
+		f.prototype.constructor = me;
+		me.prototype = new f;
+
+		/**
+		*	delete this object
+		*
+		*/
+		me.prototype.delete = function(callback){
+			var that = this;
+
+			_.defer(function(){
+				objectList.remove(that.uid);
+				if( _.isFunction(callback) ){
+					callback.call( that );
+				}
+			});
+		};
+
+
+		// METHODS CALLED FROM PUBLISHER
+
+		me.prototype.publish = function(event) {
+			if( _.isEmpty(this.subUids) ){
+				return;
+			}
+
+			var   args = slice.call(arguments, 1)
+				, that = this
+				;
+
+			_.each(this.subUids, function(uid){
+				_.defer(function(){
+					//this needs to be optimized so it can batch together messages to the same server
+					socketController.emit('pub', uid, that.uid, event, args);
+				});
+			});
+		};
 
 
 
-	// METHODS CALLED FROM SUBSCRIBER
+		// METHODS CALLED FROM SUBSCRIBER
 
-	ness_obj.prototype.subscribe = function(pubUid, event) {
-		var args = slice.call( arguments, 3 );
+		me.prototype.subscribe = function(pubUid, event) {
+			var args = slice.call( arguments, 3 );
 
-		// TODO add max number of subscribers and complain if it goes over this amount
+			// TODO add max number of subscribers and complain if it goes over this amount
 
-		// emit message to sc to send this data off
-		socketController.emit('sub', pubUid, this.uid, event, args);
+			// emit message to sc to send this data off
+			socketController.emit('sub', pubUid, this.uid, event, args);
 
-	};
+		};
+
+		return me;
+	})();
 
 
 
@@ -535,6 +564,12 @@
 
 
 		exports.socket = {
+			"setIpAlgorithm": function(func){
+				socketController.setIpAlgorithm(func);
+			},
+			"setPortAlgorithm": function(func){
+				socketController.setPortAlgorithm(func);
+			},
 			"setPath": function(path){
 
 				if(_.isString(path)){
@@ -583,7 +618,6 @@
 				}
 
 				//set socket path and init it if
-				// TODO is this necessary?
 				if( !_.isEmpty( o.socketPath ) && _.isString(o.socketPath) ){
 					socketController.setSocketPath( o.socketPath );
 					socketController.initSocket('unix');
