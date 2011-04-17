@@ -142,7 +142,7 @@
 		};
 
 		me.getPortFromUid = function(uid){
-			return 8000 + (uid % 10);
+			return 8000 + (uid % 2);
 		}
 
 		me.getServerFromUid = function(uid) {
@@ -293,6 +293,8 @@
 				, new_args
 				;
 
+				event = type === 'publish' ? event : 'addSubscriber';
+
 			// if the pubUid is in the same thread (same port and ip), simply emit the event
 			// if the init method has not been called, just emit and assume all objects are on this server
 			if( _.isEqual(toServer, currentServer) || me.initalized == false ){
@@ -330,16 +332,27 @@
 
 		function _emitToObject(toUid, fromUid, event, args){
 			// break this bit of processing into smaller chunks
-			_.defer(function(){
+			_.defer(_emit);
+
+			function _emit(){
+				var   new_args
+					, obj
+					;
+
 				obj = objectList.get(toUid);
 				if(obj){
-					var new_args = _.isArray(args) && args || [];
-					new_args.unshift(event, fromUid);
-					obj.emit.apply(obj, new_args);
+					new_args = _.isArray(args) && args || [];
+					_.defer(function(){
+						new_args.unshift(event, fromUid);
+
+						_.defer(function(){
+							obj.emit.apply(obj, new_args);
+						});
+					});
 				}else{
 					console.warn('trying to get a non-object on current server!');
 				}
-			});
+			}
 		}
 
 
@@ -370,7 +383,7 @@
 
 			if(obj.type !== void 0){
 				// TODO: make this more robust to check the validity of the incoming data
-				event = obj.type === 'publish' ? obj.event : 'addSubscriber';
+				event = obj.event;
 				if(obj.toUid !== void 0){
 					_emitToObject(obj.toUid, obj.fromUid, event, obj.args);
 				}else{
@@ -410,17 +423,19 @@
 
 
 	// extend eventEmitter class
-	ness_obj = function(uid, subUids){
+	ness_obj = function(uid, subUids, callback){
+		var that = this;
+
 		this.uid = uid;
 		this.subUids = _.isArray(subUids) && subUids || [];
 
-		objectList.add(uid, this);
-
+		_.defer(function(){
+			objectList.add(uid, that);
+		});
 
 		// addSubscriber is fired when a new subscriber message hits the server
 		// TODO: make this specific to the event being subscribed to
 
-		var that = this;
 		this.on('addSubscriber', _addSubscriber);
 
 
@@ -428,7 +443,6 @@
 		function _addSubscriber(subUid) {
 			// defer all computations that may be expensive
 			_.defer(checkIndex);
-
 
 			function checkIndex(){
 				//check to ensure its not already in this array
@@ -439,6 +453,10 @@
 
 			function pushUids(){
 				that.subUids.push(subUid);
+
+				if( _.isFunction(callback) ){
+					callback.call( that, subUid );
+				}
 			}
 		}
 	}
@@ -453,8 +471,15 @@
 	*	delete this object
 	*
 	*/
-	ness_obj.prototype.delete = function(){
-		objectList.remove(this.uid);
+	ness_obj.prototype.delete = function(callback){
+		var that = this;
+
+		_.defer(function(){
+			objectList.remove(that.uid);
+			if( _.isFunction(callback) ){
+				callback.call( that );
+			}
+		});
 	}
 
 
@@ -471,7 +496,8 @@
 
 		_.each(this.subUids, function(uid){
 			_.defer(function(){
-				socketController.emit('pub', uid, that.uid, event, args); //this needs to be optimized
+				//this needs to be optimized so it can batch together messages to the same server
+				socketController.emit('pub', uid, that.uid, event, args);
 			});
 		});
 	};
@@ -480,12 +506,10 @@
 
 	// METHODS CALLED FROM SUBSCRIBER
 
-	ness_obj.prototype.subscribe = function(pubUid, event, callback) {
+	ness_obj.prototype.subscribe = function(pubUid, event) {
 		var args = slice.call( arguments, 3 );
 
-		// message event is emitted when the message hits this server
-		// this occurs when the publisher has published a message to their subscribers
-		this.on( 'message', callback || function(){} );
+		// TODO add max number of subscribers and complain if it goes over this amount
 
 		// emit message to sc to send this data off
 		socketController.emit('sub', pubUid, this.uid, event, args);
@@ -528,7 +552,7 @@
 					console.warn('invalid path passed into setSocketPath');
 				}
 			},
-			"init": function(o){
+			"init": _.once( function(o){
 				var   defaults
 					, serverMap
 					, serverId
@@ -573,10 +597,11 @@
 				if( _.isString(o.socketType) && !_.isEmpty(o.socketType) && (o.socketType === 'udp' || o.socketType === 'tcp') ){
 					socketController.initSocket(o.socketType);
 				}
-			}
+			})
 		};
-		exports.create = function(uid, subUids){
-			return new ness_obj(uid, subUids || []);
+		exports.create = function(uid, subUids, callback){
+
+			return new ness_obj(uid, subUids || [], callback);
 		};
 		exports.getBaseObject = function(){
 			// TODO: will the ness.create method automatically return the updated objects if the user calls: ness.getBaseObject().prototype.newFunc ?

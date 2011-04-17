@@ -7,6 +7,7 @@ var   _ = require('underscore')
 	, options
 	, uid
 	, user
+	, user2
 	, subuids
 	;
 
@@ -22,13 +23,18 @@ if(uid === 0){
 	subuids = [1];
 	port = 80;
 
+	user2 = ness.create(2, [], function(subUid){ console.log('added ' + subUid + ' to ' + this.uid); } );
+	user2.on('call', function(){
+		console.log('user: ' + user2.uid + ' received call event');
+	});
+
 }else{
 	subuids = [0];
 	port = 443;
 }
 
 
-user = ness.create(uid);
+user = ness.create(uid, [], function(subUid){ console.log('added ' + subUid + ' to ' + this.uid); } );
 user.on('call', function(){
 	console.log('user: ' + user.uid + ' received call event');
 });
@@ -44,6 +50,7 @@ user.on('call', function(){
 			if(uid === 0){
 				console.log('user: ' + user.uid + ' triggered call event');
 				user.publish('call', 'a', 'b', 'c');
+				user2.subscribe(0, 'call');
 			}else{
 				console.log('user: ' + user.uid + ' subscribing to call event');
 				user.subscribe(0, 'call');
