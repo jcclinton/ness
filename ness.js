@@ -223,7 +223,11 @@
 
 			function _onSocketListening() {
 				var address = socket.address();
-				console.warn("socket listening " + address.address + ":" + address.port);
+				if(address.port){
+					console.warn("socket listening " + address.address + ":" + address.port);
+				}else{
+					console.warn("socket listening " + address.address);
+				}
 			}
 		};
 
@@ -340,11 +344,21 @@
 				obj = {};
 			}
 
-			console.warn("socket got: " + msg + " from " + rinfo.address + ":" + rinfo.port);
+			// since all servers at this ip are listening to this socket,
+			// filter out the servers who dont need this message
+			if( me.getCurrentPort() !== me.getPortFromUid(obj.toUid) ){
+				return;
+			}
+
+			if(rinfo.port){
+				console.warn("socket got: " + msg + " from " + rinfo.address + ":" + rinfo.port);
+			}else{
+				console.warn("socket got: " + msg + " from " + rinfo.address);
+			}
 
 			if(obj.type !== void 0){
 				// TODO: make this more robust to check the validity of the incoming data
-				event = obj.type === 'publish'?obj.event:'addSubscriber';
+				event = obj.type === 'publish' ? obj.event : 'addSubscriber';
 				if(obj.toUid !== void 0){
 					_emitToObject(obj.toUid, obj.fromUid, event, obj.args);
 				}else{
@@ -473,6 +487,9 @@
 
 		exports.socket = {
 			"setPath": function(path){
+				//TODO is this necessary?
+				return;
+				
 				if(_.isString(path)){
 					if(path !== ''){
 						socketController.socketPath = path;
@@ -519,8 +536,9 @@
 				}
 
 				//set socket path and init it if
-				if( !_.isEmpty( o.socketPath ) && _.isString(o.socketPath) ){
-					socketControllersocketPath = o.socketPath;
+				// TODO is this necessary?
+				if( false && !_.isEmpty( o.socketPath ) && _.isString(o.socketPath) ){
+					socketController.socketPath = o.socketPath;
 					socketController.initSocket('unix');
 				}
 
