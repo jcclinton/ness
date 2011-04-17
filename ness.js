@@ -340,9 +340,10 @@
 			//callback if socket.send fails
 			function onErr(err, bytes) {
 			    if (err) {
-			      throw err;
-			    }
-    			console.warn("Wrote " + bytes + " bytes to socket.");
+			    	console.warn( err );
+			    }else{
+    				console.warn("Wrote " + bytes + " bytes to socket.");
+    			}
 			}
 		}
 
