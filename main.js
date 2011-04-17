@@ -39,7 +39,7 @@ user.on('call', function(){
 		response.writeHead(200, {'Content-Type': 'text/html'});
 		response.end('<h3>You are on server: '+ uid +'</h3>');
 
-		if(req.url !== 'favicon.ico'){
+		if(req.url !== '/favicon.ico'){
 			if(uid === 0){
 				console.log('user: ' + user.uid + ' triggered call event');
 				user.publish('call', 'a', 'b', 'c');

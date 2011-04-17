@@ -257,13 +257,13 @@
 
 
 		// get the socket controller's attention when you need to publish something:
-		function _pub(toUid, event, args){
-			_sendToUid(toUid, 'publish', event, args);
+		function _pub(toUid, fromUid, event, args){
+			_sendToUid(toUid, fromUid, 'publish', event, args);
 		}
 
 		// tell the sc you are subscribing to something
-		function _sub(pubUid, event, args){
-			_sendToUid(pubUid, 'subscribe', event, args);
+		function _sub(pubUid, fromUid, event, args){
+			_sendToUid(pubUid, fromUid, 'subscribe', event, args);
 		}
 
 
@@ -271,7 +271,7 @@
 
 		// TODO: batch all subscribe messages together and fire them all out every x seconds
 		//			this may be possible for publish messages also, but the delay will be shorter
-		function _sendToUid(toUid, type, event, args){
+		function _sendToUid(toUid, fromUid, type, event, args){
 			var   toServer = me.getServerFromUid(toUid)
 				, currentServer = me.getCurrentServer()
 				, obj
@@ -283,12 +283,13 @@
 			// if the pubUid is in the same thread (same port and ip), simply emit the event
 			// if the init method has not been called, just emit and assume all objects are on this server
 			if( _.isEqual(toServer, currentServer) || me.initalized == false ){
-				_emitToObject(toUid, event, args);
+				_emitToObject(toUid, fromUid, event, args);
 			}else{
 				msg_obj =   { "type": type
 							, "event": event
 							, "args": args
 							, "toUid": toUid
+							, "fromUid": fromUid
 							};
 				msg = new Buffer( JSON.stringify( msg_obj ) );
 				// if they are on the same server, write to a unix socket, otherwise send via socket
@@ -314,11 +315,11 @@
 			}
 		}
 
-		function _emitToObject(toUid, event, args){
+		function _emitToObject(toUid, fromUid, event, args){
 			obj = objectList.get(toUid);
 			if(obj){
 				new_args = _.isArray(args) && args || [];
-				new_args.unshift(event);
+				new_args.unshift(event, fromUid);
 				obj.emit.apply(obj, new_args);
 			}else{
 				console.warn('trying to get a non-object on current server!');
@@ -345,7 +346,7 @@
 				// TODO: make this more robust to check the validity of the incoming data
 				event = obj.type === 'publish'?obj.event:'addSubscriber';
 				if(obj.toUid !== void 0){
-					_emitToObject(obj.toUid, event, obj.args);
+					_emitToObject(obj.toUid, obj.fromUid, event, obj.args);
 				}else{
 					console.warn('incoming socket message has no toUid specified');
 				}
@@ -424,11 +425,12 @@
 			return;
 		}
 
-		var args = slice.call(arguments, 1);
-
+		var   args = slice.call(arguments, 1)
+			, that = this
+			;
 
 		_.each(this.subUids, function(uid){
-			server = socketController.emit('pub', uid, event, args); //this needs to be optimized
+			server = socketController.emit('pub', uid, that.uid, event, args); //this needs to be optimized
 		});
 	};
 
@@ -438,14 +440,13 @@
 
 	ness_obj.prototype.subscribe = function(pubUid, event, callback) {
 		var args = slice.call( arguments, 3 );
-		args.unshift(this.uid);
 
 		// message event is emitted when the message hits this server
 		// this occurs when the publisher has published a message to their subscribers
 		this.on( 'message', callback || function(){} );
 
 		// emit message to sc to send this data off
-		socketController.emit('sub', pubUid, event, args);
+		socketController.emit('sub', pubUid, this.uid, event, args);
 
 	};
 
