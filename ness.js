@@ -262,8 +262,7 @@
 		}
 
 		// tell the sc you are subscribing to something
-		function _sub(pubUid, event){
-			var args = slice.call(arguments, 2);
+		function _sub(pubUid, event, args){
 			_sendToUid(pubUid, 'subscribe', event, args);
 		}
 
@@ -321,7 +320,6 @@
 				new_args = _.isArray(args) && args || [];
 				new_args.unshift(event);
 				obj.emit.apply(obj, new_args);
-				//obj.emit(event, args);
 			}else{
 				console.warn('trying to get a non-object on current server!');
 			}
@@ -346,7 +344,7 @@
 			if(obj.type !== void 0){
 				// TODO: make this more robust to check the validity of the incoming data
 				event = obj.type === 'publish'?obj.event:'addSubscriber';
-				if(obj.toUid){
+				if(obj.toUid !== void 0){
 					_emitToObject(obj.toUid, event, obj.args);
 				}else{
 					console.warn('incoming socket message has no toUid specified');
@@ -395,10 +393,12 @@
 		// addSubscriber is fired when a new subscriber message hits the server
 		// TODO: make this specific to the event being subscribed to
 
-		// TODO: will this work here in the xtor?
 		var that = this;
 		this.on('addSubscriber',  function(subUid) {
-			that.subUids.push(subUid);
+			//check to ensure its not already in this array
+			if( _.indexOf(that.subUids, subUid) === -1){
+				that.subUids.push(subUid);
+			}
 		});
 	}
 
@@ -424,10 +424,8 @@
 			return;
 		}
 
-		var   currentServerId = socketController.getServerFromUid(this.uid)
-			, servers = []
-			, args = slice.call(arguments, 1);
-			;
+		var args = slice.call(arguments, 1);
+
 
 		_.each(this.subUids, function(uid){
 			server = socketController.emit('pub', uid, event, args); //this needs to be optimized
@@ -440,10 +438,11 @@
 
 	ness_obj.prototype.subscribe = function(pubUid, event, callback) {
 		var args = slice.call( arguments, 3 );
+		args.unshift(this.uid);
 
 		// message event is emitted when the message hits this server
 		// this occurs when the publisher has published a message to their subscribers
-		this.on('message', callback);
+		this.on( 'message', callback || function(){} );
 
 		// emit message to sc to send this data off
 		socketController.emit('sub', pubUid, event, args);
@@ -531,7 +530,7 @@
 			}
 		};
 		exports.create = function(uid, subUids){
-			return new ness_obj(uid, subUids);
+			return new ness_obj(uid, subUids || []);
 		};
 		exports.getBaseObject = function(){
 			// TODO: will the ness.create method automatically return the updated objects if the user calls: ness.getBaseObject().prototype.newFunc ?

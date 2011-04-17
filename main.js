@@ -2,6 +2,7 @@
 var   _ = require('underscore')
 	, util = require('util')
 	, http = require('http')
+	, url = require('url')
 	, ness = require('/home/public_html/65.49.73.225/public/ness/ness.js')
 	, options
 	, uid
@@ -26,18 +27,25 @@ if(uid === 0){
 }
 
 
-user = ness.create(uid, subuids);
+user = ness.create(uid);
 user.on('call', function(){
 	console.log('user: ' + user.uid + ' received call event');
-	console.log(arguments);
 });
 
 
 
 
-	http.createServer(function (request, response) {
+	http.createServer(function (req, response) {
 		response.writeHead(200, {'Content-Type': 'text/html'});
 		response.end('<h3>You are on server: '+ uid +'</h3>');
-		console.log('user: ' + user.uid + ' triggered call event');
-		user.publish('call', 'a', 'b', 'c');
+
+		if(req.url !== 'favicon.ico'){
+			if(uid === 0){
+				console.log('user: ' + user.uid + ' triggered call event');
+				user.publish('call', 'a', 'b', 'c');
+			}else{
+				console.log('user: ' + user.uid + ' subscribing to call event');
+				user.subscribe(0, 'call');
+			}
+		}
 	}).listen(port, '65.49.73.225');
