@@ -40,7 +40,7 @@
 		};
 
 		me.getSize = function(){
-			return _.values(me.table).length;
+			return _.size(me.table);
 		};
 
 		return me;
@@ -138,7 +138,7 @@
 		};
 
 		me.getIpFromUid = function(uid){
-			return ( me.ipAlgorithm && _.isFunction(me.ipAlgorithm) ) ? me.ipAlgorithm.call(me, uid) : baseIP;
+			return ( me.ipAlgorithm && _.isFunction(me.ipAlgorithm) ) ? me.ipAlgorithm.call(me, uid) : me.getCurrentIp();
 		};
 
 		me.getPortFromUid = function(uid){
@@ -149,7 +149,7 @@
 			if( _.isFunction(func) ){
 				me.ipAlgorithm = func;
 			}else{
-				console.log('invalid function passed into ip algorithm');
+				console.warn('invalid function passed into ip algorithm');
 			}
 		};
 
@@ -157,7 +157,7 @@
 			if( _.isFunction(func) ){
 				me.portAlgorithm = func;
 			}else{
-				console.log('invalid function passed into port algorithm');
+				console.warn('invalid function passed into port algorithm');
 			}
 		};
 

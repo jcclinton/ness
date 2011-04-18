@@ -9,11 +9,12 @@ var   _ = require('underscore')
 	, user
 	, user2
 	, subuids
+	, port
 	;
 
 options = {   "serverMap": '/home/public_html/65.49.73.225/public/ness/map.js'
 			, "socketType": 'udp'
-			, "socketPath": '/var/local/tmp'
+			, "socketPath": ''
 			};
 
 ness.socket.init(options);
@@ -29,11 +30,11 @@ if(uid === 0){
 	});
 
 	//user2.constructor.prototype.publish = function(ev){ console.log('publishing' + ev); };
-	ness.extendBaseObject({
+	/*ness.extendBaseObject({
 		"publish": function(ev){
 			console.log('publishing' + ev);
 		}
-	});
+	});*/
 
 }else{
 	subuids = [0];
@@ -66,3 +67,14 @@ user.on('call', function(){
 		}
 	}).listen(port, '65.49.73.225');
 
+
+/**
+
+major TODO
+
+-ip/port algorithm by uid is still kinda janky
+-socket message batching still needs to be implemented
+
+
+
+*****/
