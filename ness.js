@@ -3,9 +3,9 @@
 		, _ = require('underscore')
 		, fs = require('fs')
 		, eventEmitter = require('events').EventEmitter
-		, objectList // object list stores all ness objects
+		, objectList // object list stores all event objects
 		, socketController // singleton used to manage this servers sockets
-		, nessObj // constructor for ness objects
+		, eventObject // constructor for event objects
 		, myConsole // custom console to wrap logging
 		;
 
@@ -472,7 +472,7 @@ major TODO
 	*	base object.  extends the event emitter class
 	*
 	*/
-	nessObj = (function(){
+	eventObject = (function(){
 		var me
 			, f
 			;
@@ -669,30 +669,32 @@ major TODO
 			})
 		};
 
-		exports.createNew = function(uid, subscribedUids, callback){
-			return new nessObj(uid, subscribedUids || [], callback);
-		};
+		exports.eventObject = {
+			createNew: function(uid, subscribedUids, callback){
+				return new eventObject(uid, subscribedUids || [], callback);
+			},
 
-		exports.extendBaseObject = function(){
-			var objs = Array.prototype.slice.call(arguments);
+			extend: function(){
+				var objs = Array.prototype.slice.call(arguments);
 
-			_.each(objs, function(obj){
-				if(obj){
-					_.each(obj, function(val, key){
-						if( _.isString(key) && _.isFunction(val) ){
-							nessObj.prototype[key] = val;
-						}else{
-							myConsole.shout('invalid object passed into extendBaseObject');
-						}
-					});
-				}else{
-					myConsole.shout('empty object passed into extendBaseObject');
-				}
-			});
-		};
+				_.each(objs, function(obj){
+					if(obj){
+						_.each(obj, function(val, key){
+							if( _.isString(key) && _.isFunction(val) ){
+								eventObject.prototype[key] = val;
+							}else{
+								myConsole.shout('invalid object passed into extendBaseObject');
+							}
+						});
+					}else{
+						myConsole.shout('empty object passed into extendBaseObject');
+					}
+				});
+			},
 
-		exports.getListSize = function(){
-			return objectList.getSize();
+			getListSize: function(){
+				return objectList.getSize();
+			}
 		};
 
 		exports.logging = {
