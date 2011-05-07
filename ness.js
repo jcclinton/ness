@@ -1,22 +1,51 @@
 (function(){
-	var   dgram = require('dgram')
+	var dgram = require('dgram')
 		, _ = require('underscore')
 		, fs = require('fs')
 		, eventEmitter = require('events').EventEmitter
-		, objectList 			// object list stores all ness objects
-		, socketController 		// singleton used to manage this servers sockets
-		, ness_obj 				// constructor for ness objects
-		, slice = Array.prototype.slice
+		, objectList // object list stores all ness objects
+		, socketController // singleton used to manage this servers sockets
+		, ness_obj // constructor for ness objects
 		;
 
 
 
+/**
+
+major TODO
+
+-ip/port algorithm by uid is still kinda janky
+-socket message batching still needs to be implemented
+
+
+
+*****/
+
+
+
+	/**
+	* custom logger class to allow for mass suppression of output
+	*/
+	myConsole = (function(){
+		//me = _.extend({}, console);
+		var me = {};
+
+		me.suppressLogging = false;
+
+		me.shout = function(msg){
+			if( me.suppressLogging === false ){
+				console.log(msg);
+			}
+		};
+
+		return me;
+	}());
 
 
 
 
-	/*
-	container class for all clients
+	/**
+	* container class for all clients
 	*/
 	objectList = (function(){
 		var me = {
@@ -24,7 +53,7 @@
 		};
 
 		me.add = function(id, obj) {
-			return me.table[id] = obj;
+			return (me.table[id] = obj);
 		};
 
 		me.remove = function(id) {
@@ -44,7 +73,7 @@
 		};
 
 		return me;
-	})();
+	}());
 
 
 
@@ -56,18 +85,20 @@
 
 
 
-
+	/**
+	*	controller for all socket interaction
+	*
+	*/
 	socketController = (function(){
-		var   basePort = 8000
+		var basePort = 8000
 			, baseIP = '127.0.0.1'
-			, numServers = 2
 			, me
 			, _socketHandler
 			;
 
 
 		//extend eventEmitter object
-		me = new eventEmitter;
+		me = new eventEmitter();
 
 
 		me.socketPath = '';
@@ -85,7 +116,7 @@
 		_socketHandler.udp = {
 			"init": function(){
 				if(me.udpClient !== void 0){
-					console.warn('udp client already defined');
+					myConsole.shout('udp client already defined');
 					return;
 				}
 				_socketHandler.udp.isBound = false;
@@ -100,13 +131,13 @@
 					me.udpClient.bind( me.getCurrentPort(), me.getCurrentIp() );
 					_socketHandler.udp.isBound = true;
 				}else{
-					console.warn('unable to bind udp port: port needs to be initialized first');
+					myConsole.shout('unable to bind udp port: port needs to be initialized first');
 				}
 			}
 		};
 		_socketHandler.tcp = {
 			"init": function(){
-				console.warn('tcp does not work yet');
+				myConsole.shout('tcp does not work yet');
 			},
 			"bind": function(){
 			}
@@ -120,7 +151,7 @@
 				if(me.socketPath !== ''){
 					me.unixClient.bind( me.socketPath );
 				}else{
-					console.warn('trying to bind unix socket without initializing path');
+					myConsole.shout('trying to bind unix socket without initializing path');
 				}
 			}
 		};
@@ -130,7 +161,7 @@
 
 		// TODO figure out which of these functions can be made private
 		me.getCurrentServer = function(){
-			var   ip = me.getCurrentIp()
+			var ip = me.getCurrentIp()
 				, port = me.getCurrentPort()
 				;
 
@@ -149,7 +180,7 @@
 			if( _.isFunction(func) ){
 				me.ipAlgorithm = func;
 			}else{
-				console.warn('invalid function passed into ip algorithm');
+				myConsole.shout('invalid function passed into ip algorithm');
 			}
 		};
 
@@ -157,13 +188,13 @@
 			if( _.isFunction(func) ){
 				me.portAlgorithm = func;
 			}else{
-				console.warn('invalid function passed into port algorithm');
+				myConsole.shout('invalid function passed into port algorithm');
 			}
 		};
 
 		me.getServerFromUid = function(uid) {
 			// TODO memoize this data
-			var   ip = me.getIpFromUid(uid)
+			var ip = me.getIpFromUid(uid)
 				, port = me.getPortFromUid(uid)
 				;
 
@@ -171,26 +202,26 @@
 		};
 
 		me.getCurrentIp = function() {
-			return this.currentIp !== void 0 ? this.currentIp : baseIP;
+			return (this.currentIp !== void 0) ? this.currentIp : baseIP;
 		};
 
 		me.setCurrentIp = function(ip){
 			if( _.isString( ip ) && !_.isEmpty( ip ) ){
 				this.currentIp = ip;
 			}else{
-				console.warn('bad ip value passed into server map');
+				myConsole.shout('bad ip value passed into server map');
 			}
 		};
 
 		me.getCurrentPort = function() {
-			return this.currentPort !== void 0 ? this.currentPort : 0;
+			return (this.currentPort !== void 0) ? this.currentPort : 0;
 		};
 
 		me.setCurrentPort = function(port){
 			if( _.isNumber(port) && port > 0 ){
 				this.currentPort = port;
 			}else{
-				console.warn('bad port value passed into server map');
+				myConsole.shout('bad port value passed into server map');
 			}
 		};
 
@@ -202,7 +233,7 @@
 			if( _.isNumber(id) ){
 				this.serverId = id;
 			}else{
-				console.warn('trying to set server id with non-number');
+				myConsole.shout('trying to set server id with non-number');
 			}
 		};
 
@@ -216,7 +247,7 @@
 		};
 
 		me.loadServerData = function(serverMap){
-			var   server
+			var server
 				, serverId = me.getServerId()
 				;
 
@@ -225,7 +256,7 @@
 				me.setCurrentPort( server.port );
 				me.setCurrentIp( server.ip );
 			}else{
-				console.warn('bad data loaded in from server map');
+				myConsole.shout('bad data loaded in from server map');
 			}
 		};
 
@@ -241,7 +272,7 @@
 
 				_socketHandler[type].bind();
 			}else{
-				console.warn('invalid type used when initializing socket: ' + type);
+				myConsole.shout('invalid type used when initializing socket: ' + type);
 				return;
 			}
 
@@ -249,9 +280,9 @@
 			function _onSocketListening() {
 				var address = socket.address();
 				if(address.port){
-					console.warn("socket listening " + address.address + ":" + address.port);
+					myConsole.shout("socket listening " + address.address + ":" + address.port);
 				}else{
-					console.warn("socket listening " + address.address);
+					myConsole.shout("socket listening " + address.address);
 				}
 			}
 		};
@@ -269,11 +300,10 @@
 		/////////////////////////////////
 		// construct object:
 
-		me.on('pub', _pub);
-		me.on('sub', _sub);
+		me.on('publish', _pub);
+		me.on('subscribe', _sub);
 
-		// todo: set this up to be initialized via the user, if it is never initialized, simply run as if it were all in a single thread
-		//me.initSocket('udp');
+		// todo: set this up tobe initialized via the user, if it is never initialized, simply run as if it were all in a single thread
 
 		return me;
 
@@ -286,13 +316,13 @@
 
 
 		// get the socket controller's attention when you need to publish something:
-		function _pub(toUid, fromUid, event, args){
-			_sendToUid(toUid, fromUid, 'publish', event, args);
+		function _pub(toUid, fromUid, eventType, args){
+			_sendToUid(toUid, fromUid, 'publish', eventType, args);
 		}
 
 		// tell the sc you are subscribing to something
-		function _sub(pubUid, fromUid, event, args){
-			_sendToUid(pubUid, fromUid, 'subscribe', event, args);
+		function _sub(publisherUid, fromUid, eventType, args){
+			_sendToUid(publisherUid, fromUid, 'subscribe', eventType, args);
 		}
 
 
@@ -300,59 +330,58 @@
 
 		// TODO: batch all subscribe messages together and fire them all out every x seconds
 		//			this may be possible for publish messages also, but the delay will be shorter
-		function _sendToUid(toUid, fromUid, type, event, args){
-			var   toServer = me.getServerFromUid(toUid)
+		function _sendToUid(toUid, fromUid, type, eventType, args){
+			var toServer = me.getServerFromUid(toUid)
 				, currentServer = me.getCurrentServer()
-				, obj
 				, msg
 				, msg_obj
-				, new_args
 				;
 
-				event = type === 'publish' ? event : 'addSubscriber';
+				eventType = type === 'publish' ? eventType : 'addSubscriber';
 
-			// if the pubUid is in the same thread (same port and ip), simply emit the event
+			// if the publisherUid is in the same thread (same port and ip), simply emit the event
 			// if the init method has not been called, just emit and assume all objects are on this server
-			if( _.isEqual(toServer, currentServer) || me.initalized == false ){
-				_emitToObject(toUid, fromUid, event, args);
+			if( _.isEqual(toServer, currentServer) || me.initialized === false ){
+				_emitToObject(toUid, fromUid, eventType, args);
 			}else{
 				msg_obj =   { "type": type
-							, "event": event
+							, "eventType": eventType
 							, "args": args
 							, "toUid": toUid
 							, "fromUid": fromUid
+							, "timestamp": +new Date()
 							};
 				msg = new Buffer( JSON.stringify( msg_obj ) );
 				// if they are on the same server, write to a unix socket, otherwise send via socket
 				if(toServer.ip === currentServer.ip && me.socketPath !== ''){
 					if(me.unixClient !== void 0){
-						me.unixClient.send(msg, 0, msg.length, me.getSocketPathFromUid(toUid), onErr);
+						me.unixClient.send(msg, 0, msg.length, me.getSocketPathFromUid(toUid), _onErr);
 					}else{
-						console.warn('no unixClient was created');
+						myConsole.shout('no unixClient was created');
 					}
 				}else if(me.udpClient !== void 0){
-					me.udpClient.send(msg, 0, msg.length, toServer.port, toServer.ip, onErr);
+					me.udpClient.send(msg, 0, msg.length, toServer.port, toServer.ip, _onErr);
 				}else{
-					console.warn('no udp client was created');
+					myConsole.shout('no udp client was created');
 				}
 			}
 
 			//callback if socket.send fails
-			function onErr(err, bytes) {
-			    if (err) {
-			    	console.warn( err );
+			function _onErr(err, bytes) {
+			    if(err){
+					myConsole.shout(err);
 			    }else{
-    				console.warn("Wrote " + bytes + " bytes to socket.");
-    			}
+					myConsole.shout("Wrote " + bytes + " bytes to socket.");
+				}
 			}
 		}
 
-		function _emitToObject(toUid, fromUid, event, args){
+		function _emitToObject(toUid, fromUid, eventType, args){
 			// break this bit of processing into smaller chunks
 			_.defer(_emit);
 
 			function _emit(){
-				var   new_args
+				var new_args
 					, obj
 					;
 
@@ -360,29 +389,29 @@
 				if(obj){
 					new_args = _.isArray(args) && args || [];
 					_.defer(function(){
-						new_args.unshift(event, fromUid);
+						new_args.unshift(eventType, fromUid);
 
 						_.defer(function(){
 							obj.emit.apply(obj, new_args);
 						});
 					});
 				}else{
-					console.warn('trying to get a non-object on current server!');
+					myConsole.shout('trying to get a non-object on current server!');
 				}
 			}
 		}
 
 
 		function _onSocketMessage(buf, rinfo) {
-			var   msg = buf.toString('utf8')
+			var msg = buf.toString('utf8')
 				, obj
-				, event
+				, eventType
 				;
 
 			try{
 				obj = JSON.parse(msg);
 			}catch(err){
-				console.warn("cant parse incoming message");
+				myConsole.shout("cant parse incoming message: " + err);
 				obj = {};
 			}
 
@@ -393,23 +422,23 @@
 			}
 
 			if(rinfo.port){
-				console.warn("socket got: " + msg + " from " + rinfo.address + ":" + rinfo.port);
+				myConsole.shout("socket got: " + msg + " from " + rinfo.address + ":" + rinfo.port);
 			}else{
-				console.warn("socket got: " + msg + " from " + rinfo.address);
+				myConsole.shout("socket got: " + msg + " from " + rinfo.address);
 			}
 
 			if(obj.type !== void 0){
 				// TODO: make this more robust to check the validity of the incoming data
-				event = obj.event;
+				eventType = obj.eventType;
 				if(obj.toUid !== void 0){
-					_emitToObject(obj.toUid, obj.fromUid, event, obj.args);
+					_emitToObject(obj.toUid, obj.fromUid, eventType, obj.args);
 				}else{
-					console.warn('incoming socket message has no toUid specified');
+					myConsole.shout('incoming socket message has no toUid specified');
 				}
 			}
 		}
 
-	})();
+	}());
 
 
 
@@ -443,43 +472,51 @@
 	*
 	*/
 	ness_obj = (function(){
-		var   me
+		var me
 			, f
 			;
 
-		me = function(uid, subUids, callback){
+		me = function(uid, subscribedUids, callback){
 			var that = this;
 
 			this.uid = uid;
-			this.subUids = _.isArray(subUids) && subUids || [];
+			this.subscribedUids = _.isArray(subscribedUids) && subscribedUids || [];
 
+			if( objectList.get(uid) ){
+				myConsole.shout(uid + ' is already taken as a uid...');
+			}
+
+			// put this object into the global lookup list
 			_.defer(function(){
 				objectList.add(uid, that);
 			});
 
+
 			// addSubscriber is fired when a new subscriber message hits the server
 			// TODO: make this specific to the event being subscribed to
-
 			this.on('addSubscriber', _addSubscriber);
 
 
-			// private xtor functions:
-			function _addSubscriber(subUid) {
+
+			// private constructor functions:
+
+			function _addSubscriber(subscriberUid) {
 				// defer all computations that may be expensive
 				_.defer(checkIndex);
 
+
 				function checkIndex(){
-					//check to ensure its not already in this array
-					if( _.indexOf(that.subUids, subUid) === -1){
+					//check to ensure its not already in this array (ie indexOf returns -1)
+					if( !~_.indexOf(that.subscribedUids, subscriberUid) ){
 						_.defer(pushUids);
 					}
 				}
 
 				function pushUids(){
-					that.subUids.push(subUid);
+					that.subscribedUids.push(subscriberUid);
 
 					if( _.isFunction(callback) ){
-						callback.call( that, subUid );
+						callback.call( that, subscriberUid );
 					}
 				}
 			}
@@ -489,13 +526,13 @@
 		f = function(){};
 		f.prototype = eventEmitter.prototype;
 		f.prototype.constructor = me;
-		me.prototype = new f;
+		me.prototype = new f();
 
 		/**
 		*	delete this object
 		*
 		*/
-		me.prototype.delete = function(callback){
+		me.prototype.destroy = function(callback){
 			var that = this;
 
 			_.defer(function(){
@@ -509,19 +546,19 @@
 
 		// METHODS CALLED FROM PUBLISHER
 
-		me.prototype.publish = function(event) {
-			if( _.isEmpty(this.subUids) ){
+		me.prototype.publish = function(eventType) {
+			if( _.isEmpty(this.subscribedUids) ){
 				return;
 			}
 
-			var   args = slice.call(arguments, 1)
+			var args = Array.prototype.slice.call(arguments, 1)
 				, that = this
 				;
 
-			_.each(this.subUids, function(uid){
+			_.each(this.subscribedUids, function(subscribedUid){
 				_.defer(function(){
 					//this needs to be optimized so it can batch together messages to the same server
-					socketController.emit('pub', uid, that.uid, event, args);
+					socketController.emit('publish', subscribedUid, that.uid, eventType, args);
 				});
 			});
 		};
@@ -530,18 +567,18 @@
 
 		// METHODS CALLED FROM SUBSCRIBER
 
-		me.prototype.subscribe = function(pubUid, event) {
-			var args = slice.call( arguments, 3 );
+		me.prototype.subscribe = function(publisherUid, eventType) {
+			var args = Array.prototype.slice.call( arguments, 3 );
 
 			// TODO add max number of subscribers and complain if it goes over this amount
 
 			// emit message to sc to send this data off
-			socketController.emit('sub', pubUid, this.uid, event, args);
+			socketController.emit('subscribe', publisherUid, this.uid, eventType, args);
 
 		};
 
 		return me;
-	})();
+	}());
 
 
 
@@ -565,13 +602,13 @@
 
 
 		exports.socket = {
-			"setIpAlgorithm": function(func){
+			setIpAlgorithm: function(func){
 				socketController.setIpAlgorithm(func);
 			},
-			"setPortAlgorithm": function(func){
+			setPortAlgorithm: function(func){
 				socketController.setPortAlgorithm(func);
 			},
-			"setPath": function(path){
+			setPath: function(path){
 
 				if(_.isString(path)){
 					if(path !== ''){
@@ -581,11 +618,11 @@
 						socketController.removeSocketPath();
 					}
 				}else{
-					console.warn('invalid path passed into setSocketPath');
+					myConsole.shout('invalid path passed into setSocketPath');
 				}
 			},
-			"init": _.once( function(o){
-				var   defaults
+			init: _.once( function(o){
+				var defaults
 					, serverMap
 					, serverId
 					;
@@ -614,7 +651,7 @@
 						serverMap = JSON.parse( fs.readFileSync(o.serverMap).toString('utf8') );
 						socketController.loadServerData(serverMap);
 					}catch(err){
-						console.warn('bad file descriptor passed into init');
+						myConsole.shout('bad file descriptor passed into init: ' + err);
 					}
 				}
 
@@ -631,12 +668,12 @@
 			})
 		};
 
-		exports.create = function(uid, subUids, callback){
-			return new ness_obj(uid, subUids || [], callback);
+		exports.createNew = function(uid, subscribedUids, callback){
+			return new ness_obj(uid, subscribedUids || [], callback);
 		};
 
 		exports.extendBaseObject = function(){
-			var objs = slice.call(arguments);
+			var objs = Array.prototype.slice.call(arguments);
 
 			_.each(objs, function(obj){
 				if(obj){
@@ -644,11 +681,11 @@
 						if( _.isString(key) && _.isFunction(val) ){
 							ness_obj.prototype[key] = val;
 						}else{
-							console.warn('invalid object passed into extendBaseObject');
+							myConsole.shout('invalid object passed into extendBaseObject');
 						}
 					});
 				}else{
-					console.warn('empty object passed into extendBaseObject');
+					myConsole.shout('empty object passed into extendBaseObject');
 				}
 			});
 		};
@@ -657,4 +694,14 @@
 			return objectList.getSize();
 		};
 
-})();
+		exports.logging = {
+			suppress: function(){
+				myConsole.suppressLogging = true;
+			},
+			allow: function(){
+				myConsole.suppressLogging = false;
+			}
+		};
+
+
+}());

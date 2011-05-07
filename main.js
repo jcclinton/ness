@@ -1,51 +1,78 @@
 
-var   _ = require('underscore')
+var _ = require('underscore')
 	, util = require('util')
 	, http = require('http')
 	, url = require('url')
-	, ness = require('/home/public_html/65.49.73.225/public/ness/ness.js')
+	, ness = require('./ness.js')
 	, options
-	, uid
+	, uid = process.ARGV[2] | 0
 	, user
 	, user2
-	, subuids
+	, subscribedUids
 	, port
+	, ip = ''
 	;
 
-options = {   "serverMap": '/home/public_html/65.49.73.225/public/ness/map.js'
+options = {   "serverMap": './map.js'
 			, "socketType": 'udp'
-			, "socketPath": ''
+			, "socketPath": '/var/local/tmp'
 			};
 
 ness.socket.init(options);
 
-uid = process.ARGV[2] | 0;
+
+/**
+
+this is meant to be a test between server 0 and server 1
+to run this example, run these two commands:
+sudo node main.js 0
+sudo node main.js 1
+
+this example creates users with uids of 0 and 2 on server 0
+it creates a user with uid 1 on server 1
+
+It then adds an event listener to the 'call' event for each user object
+
+finally, hitting localhost:80 in your browser will subscribe user 2 to user 0 (same server subscription)
+hitting localhost:443 in your browser will subscribe user 1 to user 0 (different server subscription)
+
+after that point, if you hit localhost:80, it will publish a 'call' event which will be heard by both servers
+
+this example uses the unix domain socket to communicate since both servers are on localhost, to use udp simply pass in an empty options.socketPath
+
+
+**/
+
+
 if(uid === 0){
-	subuids = [1];
+	//subscribedUids = [1];
 	port = 80;
 
-	user2 = ness.create(2, [], function(subUid){ console.log('added ' + subUid + ' to ' + this.uid); } );
+	user2 = ness.createNew(2, [], function(subUid){ console.log('added ' + subUid + ' to ' + this.uid); } );
 	user2.on('call', function(){
 		console.log('user: ' + user2.uid + ' received call event');
 	});
 
-	//user2.constructor.prototype.publish = function(ev){ console.log('publishing' + ev); };
-	/*ness.extendBaseObject({
+	/*
+	// change publish prototype:
+	ness.extendBaseObject({
 		"publish": function(ev){
-			console.log('publishing' + ev);
+			console.log('publishing ' + ev);
 		}
 	});*/
 
 }else{
-	subuids = [0];
+	//subscribedUids = [0];
 	port = 443;
 }
 
 
-user = ness.create(uid, [], function(subUid){ console.log('added ' + subUid + ' to ' + this.uid); } );
-user.on('call', function(){
-	console.log('user: ' + user.uid + ' received call event');
-});
+if(uid !== 2){
+	user = ness.createNew(uid, [], function(subUid){ console.log('added ' + subUid + ' to ' + this.uid); } );
+	user.on('call', function(){
+		console.log('user: ' + user.uid + ' received call event');
+	});
+}
 
 
 
@@ -65,16 +92,4 @@ user.on('call', function(){
 				user.subscribe(0, 'call');
 			}
 		}
-	}).listen(port, '65.49.73.225');
-
-
-/**
-
-major TODO
-
--ip/port algorithm by uid is still kinda janky
--socket message batching still needs to be implemented
-
-
-
-*****/
+	}).listen(port, ip);
