@@ -5,7 +5,7 @@
 		, eventEmitter = require('events').EventEmitter
 		, objectList // object list stores all ness objects
 		, socketController // singleton used to manage this servers sockets
-		, ness_obj // constructor for ness objects
+		, nessObj // constructor for ness objects
 		;
 
 
@@ -471,7 +471,7 @@ major TODO
 	*	base object.  extends the event emitter class
 	*
 	*/
-	ness_obj = (function(){
+	nessObj = (function(){
 		var me
 			, f
 			;
@@ -669,7 +669,7 @@ major TODO
 		};
 
 		exports.createNew = function(uid, subscribedUids, callback){
-			return new ness_obj(uid, subscribedUids || [], callback);
+			return new nessObj(uid, subscribedUids || [], callback);
 		};
 
 		exports.extendBaseObject = function(){
@@ -679,7 +679,7 @@ major TODO
 				if(obj){
 					_.each(obj, function(val, key){
 						if( _.isString(key) && _.isFunction(val) ){
-							ness_obj.prototype[key] = val;
+							nessObj.prototype[key] = val;
 						}else{
 							myConsole.shout('invalid object passed into extendBaseObject');
 						}
