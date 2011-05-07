@@ -6,6 +6,7 @@
 		, objectList // object list stores all ness objects
 		, socketController // singleton used to manage this servers sockets
 		, nessObj // constructor for ness objects
+		, myConsole // custom console to wrap logging
 		;
 
 
@@ -114,7 +115,7 @@ major TODO
 		// used to abstract away different socket types: udp, tcp, unix
 		_socketHandler = {};
 		_socketHandler.udp = {
-			"init": function(){
+			init: function(){
 				if(me.udpClient !== void 0){
 					myConsole.shout('udp client already defined');
 					return;
@@ -123,7 +124,7 @@ major TODO
 				me.udpClient = dgram.createSocket('udp4');
 				return me.udpClient;
 			},
-			"bind": function(){
+			bind: function(){
 				if(_socketHandler.udp.isBound === true){
 					me.udpClient.close();
 				}
@@ -136,18 +137,18 @@ major TODO
 			}
 		};
 		_socketHandler.tcp = {
-			"init": function(){
+			init: function(){
 				myConsole.shout('tcp does not work yet');
 			},
-			"bind": function(){
+			bind: function(){
 			}
 		};
 		_socketHandler.unix = {
-			"init": function(){
+			init: function(){
 				me.unixClient = dgram.createSocket('unix_dgram');
 				return me.unixClient;
 			},
-			"bind": function(){
+			bind: function(){
 				if(me.socketPath !== ''){
 					me.unixClient.bind( me.socketPath );
 				}else{
