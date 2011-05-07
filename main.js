@@ -3,7 +3,7 @@ var _ = require('underscore')
 	, util = require('util')
 	, http = require('http')
 	, url = require('url')
-	, ness = require('./ness.js')
+	, pubsub = require('./pubsub.js')
 	, options
 	, uid = process.ARGV[2] | 0
 	, user
@@ -18,11 +18,11 @@ options = {   "serverMap": './map.js'
 			, "socketPath": '/var/local/tmp'
 			};
 
-ness.socket.init(options);
+pubsub.socket.init(options);
 
 // set port algorith used by sockets
-ness.socket.setPortAlgorithm(portAlgo);
-ness.socket.setIpAlgorithm(ipAlgo);
+pubsub.socket.setPortAlgorithm(portAlgo);
+pubsub.socket.setIpAlgorithm(ipAlgo);
 
 // put users 0 and 2 on 8000, user 1 on port 8001
 function portAlgo(uid){
@@ -60,14 +60,14 @@ if(uid === 0){
 	//subscribedUids = [1];
 	port = 80;
 
-	user2 = ness.eventObject.createNew(2, [], function(subUid){ console.log('added ' + subUid + ' to ' + this.uid); } );
+	user2 = pubsub.eventObject.createNew(2, [], function(subUid){ console.log('added ' + subUid + ' to ' + this.uid); } );
 	user2.on('call', function(){
 		console.log('user: ' + user2.uid + ' received call event');
 	});
 
 	/*
 	// change publish prototype:
-	ness.eventObject.extend({
+	pubsub.eventObject.extend({
 		"publish": function(ev){
 			console.log('publishing ' + ev);
 		}
@@ -80,7 +80,7 @@ if(uid === 0){
 
 
 if(uid !== 2){
-	user = ness.eventObject.createNew(uid, [], function(subUid){ console.log('added ' + subUid + ' to ' + this.uid); } );
+	user = pubsub.eventObject.createNew(uid, [], function(subUid){ console.log('added ' + subUid + ' to ' + this.uid); } );
 	user.on('call', function(){
 		console.log('user: ' + user.uid + ' received call event');
 	});
