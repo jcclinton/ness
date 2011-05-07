@@ -20,6 +20,18 @@ options = {   "serverMap": './map.js'
 
 ness.socket.init(options);
 
+// set port algorith used by sockets
+ness.socket.setPortAlgorithm(portAlgo);
+ness.socket.setIpAlgorithm(ipAlgo);
+
+// put users 0 and 2 on 8000, user 1 on port 8001
+function portAlgo(uid){
+	return 8000 + (uid % 2);
+}
+function ipAlgo(uid){
+	return '127.0.0.1';
+}
+
 
 /**
 

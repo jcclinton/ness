@@ -15,12 +15,12 @@
 
 major TODO
 
--ip/port algorithm by uid is still kinda janky
+-ip and port algorithms are separate logic from how a user is created, this is bad and will be error prone
 -socket message batching still needs to be implemented
+-will objectList cause memory leak issues?
+-clean up the socketController, it has too many extra layers of getting and setting
 
-
-
-*****/
+*/
 
 
 
@@ -161,6 +161,7 @@ major TODO
 
 
 		// TODO figure out which of these functions can be made private
+		// also, reduce the number of getters and setters
 		me.getCurrentServer = function(){
 			var ip = me.getCurrentIp()
 				, port = me.getCurrentPort()
@@ -170,11 +171,11 @@ major TODO
 		};
 
 		me.getIpFromUid = function(uid){
-			return ( me.ipAlgorithm && _.isFunction(me.ipAlgorithm) ) ? me.ipAlgorithm.call(me, uid) : me.getCurrentIp();
+			return ( me.ipAlgorithm && _.isFunction(me.ipAlgorithm) ) ? me.ipAlgorithm(uid) : me.getCurrentIp();
 		};
 
 		me.getPortFromUid = function(uid){
-			return ( me.portAlgorithm && _.isFunction(me.portAlgorithm) ) ? me.portAlgorithm.call(me, uid) : basePort + (uid % 2);
+			return ( me.portAlgorithm && _.isFunction(me.portAlgorithm) ) ? me.portAlgorithm(uid) : me.getCurrentPort();
 		};
 
 		me.setIpAlgorithm = function(func){
@@ -304,8 +305,6 @@ major TODO
 		me.on('publish', _pub);
 		me.on('subscribe', _sub);
 
-		// todo: set this up tobe initialized via the user, if it is never initialized, simply run as if it were all in a single thread
-
 		return me;
 
 
@@ -329,7 +328,7 @@ major TODO
 
 		// TODO: if multiple messages are being sent to the same server, batch them into the same message
 
-		// TODO: batch all subscribe messages together and fire them all out every x seconds
+		// TODO: batch all subscribe messages together and fire them all out every x milliseconds
 		//			this may be possible for publish messages also, but the delay will be shorter
 		function _sendToUid(toUid, fromUid, type, eventType, args){
 			var toServer = me.getServerFromUid(toUid)
@@ -494,7 +493,8 @@ major TODO
 
 
 			// addSubscriber is fired when a new subscriber message hits the server
-			// TODO: make this specific to the event being subscribed to
+			// TODO: make this specific to the event being subscribed to?
+			// 		this would produce much less i/o, but could make the interface less generic
 			this.on('addSubscriber', _addSubscriber);
 
 
