@@ -1,3 +1,6 @@
+//		Ness 0.1
+//		Underscore is freely distributable under the MIT license.
+//		Jamie Clinton 2011
 (function(){
 	var dgram = require('dgram')
 		, _ = require('underscore')
