@@ -1,3 +1,12 @@
 ness readme:
 
 ness is a system for subscribing and publishing events on persistent objects across multiple node server instances.
+
+example usage:
+two users have persistent objects on the servers
+user 1 is on server 1 (persisting in memory)
+user 2 is on server 2 (ie a second instance of node)
+user 2 subscribes to user 1
+user 1 publishes an event and user 2 receives the event and executes some callback
+
+This allows objects to communicate with one another via events across servers
