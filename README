@@ -3,17 +3,10 @@ ness readme:
 ness is a system for subscribing and publishing events on persistent objects across multiple node server instances.
 
 example usage:
-<<<<<<< HEAD
 two users have persistent objects on the servers
-=======
->>>>>>> 6df9be17664521ea6c2e0fbdf2be0a883ead6227
 user 1 is on server 1 (persisting in memory)
 user 2 is on server 2 (ie a second instance of node)
 user 2 subscribes to user 1
 user 1 publishes an event and user 2 receives the event and executes some callback
 
-<<<<<<< HEAD
-This allows objects to communicate with one another via events across servers
-=======
-
->>>>>>> 6df9be17664521ea6c2e0fbdf2be0a883ead6227
+This allows objects to communicate with one another via events across servers.  It achieves this via unix domain sockets for multiple node instances running on the same server.  It uses UDP to communicate with node instances running on different servers (or on the same server if domain sockets are not your cup of tea).
